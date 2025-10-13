@@ -3,7 +3,7 @@
 export type Role = 'student' | 'employer' | 'super_administrator' | 'administrator' | 'manager' | 'supervisor' | 'editor' | 'entrepreneur' | 'funder' | 'mentor' | 'intern' | 'trainer' | 'implementer' | 'coach' | 'facilitator' | 'publisher' | 'producer' | 'artist' | 'alumni';
 
 export interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
   avatar: string;
@@ -37,7 +37,7 @@ export interface Module {
 }
 
 export interface Course {
-  id: number;
+  id: string;
   title: string;
   instructor: string;
   duration: string;
@@ -49,7 +49,7 @@ export interface Course {
 }
 
 export interface Job {
-  id: number;
+  id: string;
   title: string;
   company: string;
   location: string;
@@ -80,14 +80,20 @@ export interface Risk {
 }
 
 export interface Project {
-  id: number;
+  id: string;
   title: string;
   description: string;
-  status: 'Not Started' | 'In Progress' | 'Completed';
+  status: 'Not Started' | 'In Progress' | 'Completed' | 'On Hold' | 'Cancelled';
+  priority: 'Low' | 'Medium' | 'High' | 'Critical';
   dueDate: string;
+  budget?: number;
+  client?: string;
+  tags: string[];
   team: User[];
   tasks: Task[];
   risks: Risk[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface KeyResult {
@@ -100,13 +106,13 @@ export interface KeyResult {
 
 export interface Objective {
   id: string;
-  projectId: number;
+  projectId: string;
   title: string;
   keyResults: KeyResult[];
 }
 
 export interface Contact {
-  id: number;
+  id: string;
   name: string;
   workEmail: string;
   personalEmail?: string;
@@ -119,7 +125,7 @@ export interface Contact {
 }
 
 export interface Document {
-  id: number;
+  id: string;
   title: string;
   content: string;
   createdAt: string;
@@ -127,10 +133,10 @@ export interface Document {
 }
 
 export interface TimeLog {
-  id: number;
-  userId: number;
+  id: string;
+  userId: string;
   entityType: 'project' | 'course' | 'task';
-  entityId: number | string;
+  entityId: string;
   entityTitle: string;
   date: string;
   duration: number; // in minutes
@@ -138,8 +144,8 @@ export interface TimeLog {
 }
 
 export interface LeaveRequest {
-  id: number;
-  userId: number;
+  id: string;
+  userId: string;
   userName: string;
   userAvatar: string;
   startDate: string;
@@ -149,7 +155,7 @@ export interface LeaveRequest {
 }
 
 export interface Invoice {
-  id: number;
+  id: string;
   invoiceNumber: string;
   clientName: string;
   amount: number;
@@ -158,11 +164,11 @@ export interface Invoice {
   receipt?: Receipt;
   paidDate?: string;
   paidAmount?: number;
-  recurringSourceId?: number;
+  recurringSourceId?: string;
 }
 
 export interface Expense {
-  id: number;
+  id: string;
   category: string;
   description: string;
   amount: number;
@@ -171,13 +177,13 @@ export interface Expense {
   receipt?: Receipt;
   status: 'Paid' | 'Unpaid';
   budgetItemId?: string;
-  recurringSourceId?: number;
+  recurringSourceId?: string;
 }
 
 export type RecurrenceFrequency = 'Monthly' | 'Quarterly' | 'Annually';
 
 export interface RecurringInvoice {
-    id: number;
+    id: string;
     clientName: string;
     amount: number;
     frequency: RecurrenceFrequency;
@@ -187,7 +193,7 @@ export interface RecurringInvoice {
 }
 
 export interface RecurringExpense {
-    id: number;
+    id: string;
     category: string;
     description: string;
     amount: number;
@@ -210,23 +216,23 @@ export interface BudgetLine {
 }
 
 export interface Budget {
-    id: number;
+    id: string;
     title: string;
     type: 'Project' | 'Office';
     amount: number;
     startDate: string;
     endDate: string;
-    projectId?: number;
+    projectId?: string;
     budgetLines: BudgetLine[];
 }
 
 export interface Meeting {
-    id: number;
+    id: string;
     title: string;
     startTime: string; // ISO string
     endTime: string; // ISO string
     attendees: User[];
-    organizerId: number;
+    organizerId: string;
     description?: string;
 }
 
@@ -243,7 +249,7 @@ export interface AppNotification {
     message: string;
     date: string;
     entityType: 'invoice' | 'expense';
-    entityId: number;
+    entityId: string;
     isRead: boolean;
 }
 
@@ -253,7 +259,7 @@ export interface AgentMessage {
 }
 
 export interface Toast {
-    id: number;
+    id: string;
     message: string;
     type: 'success' | 'error' | 'info';
 }

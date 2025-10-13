@@ -5,6 +5,7 @@ import { Project, Task, User, Risk, TimeLog, Course } from '../types';
 import { enhanceProjectTasks, identifyRisks, generateStatusReport, summarizeTasks } from '../services/geminiService';
 import LogTimeModal from './LogTimeModal';
 import ConfirmationModal from './common/ConfirmationModal';
+import UserMultiSelect from './common/UserMultiSelect';
 
 const statusStyles = {
     'Not Started': 'bg-gray-200 text-gray-800',

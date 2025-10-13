@@ -1,12 +1,18 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 🚀 Ecosystia - AI-Powered Ecosystem Management Platform
 
-# Run and deploy your AI Studio app
+**Version:** 1.0.0  
+**Date:** October 2025
 
-This contains everything you need to run your app locally.
+Ecosystia is a comprehensive ecosystem management platform powered by AI, designed to empower teams and individuals across multiple sectors including education, entrepreneurship, project management, and workforce development.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1bzKck0pUgEiWAukXev37V_EUV_WYobiy
+## 🌟 Key Features
+
+- **18 Functional Modules** covering workspace management, development, AI tools, and administration
+- **19 User Roles** with granular permission system
+- **AI Integration** with Google Gemini for intelligent assistance
+- **Professional Exports** (PDF & Excel) for reports and data
+- **Appwrite Backend** for scalable, secure data management
+- **Multilingual Support** (English & French)
 
 ## Run Locally
 
@@ -14,7 +20,23 @@ View your app in AI Studio: https://ai.studio/apps/drive/1bzKck0pUgEiWAukXev37V_
 
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+   ```bash
+   npm install
+   ```
+
+2. Configure Gemini API Key (Optional - app works in mock mode without it):
+   - Get your API key from: https://aistudio.google.com/app/apikey
+   - Create a `.env` file in the root directory
+   - Add your API key:
+     ```
+     VITE_GEMINI_API_KEY=your_api_key_here
+     ```
+
 3. Run the app:
-   `npm run dev`
+   ```bash
+   npm run dev
+   ```
+
+4. Open your browser to: http://localhost:5173
+
+**Note:** The application works in mock mode if no API key is provided. AI features will return simulated responses.

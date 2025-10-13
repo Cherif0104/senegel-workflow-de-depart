@@ -1,8 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './contexts/AuthContext';
-import { mockCourses, mockJobs, mockProjects, mockGoals, mockContacts, mockDocuments, mockAllUsers, mockTimeLogs, mockLeaveRequests, mockInvoices, mockExpenses, mockRecurringInvoices, mockRecurringExpenses, mockBudgets, mockMeetings } from './constants/data';
+import { useNavigation } from './hooks/useNavigation';
+import { mockCourses, mockJobs, mockGoals, mockContacts, mockDocuments, mockAllUsers, mockTimeLogs, mockLeaveRequests, mockInvoices, mockExpenses, mockRecurringInvoices, mockRecurringExpenses, mockBudgets, mockMeetings } from './constants/data';
+import { projectService } from './services/projectService';
+import { userService, testConnection } from './services/dataService';
 import { Course, Job, Project, Objective, Contact, Document, User, Role, TimeLog, LeaveRequest, Invoice, Expense, AppNotification, RecurringInvoice, RecurringExpense, RecurrenceFrequency, Budget, Meeting } from './types';
+import { generateProjectId, generateUserId, generateCourseId, generateContactId, generateInvoiceId, generateExpenseId, generateBudgetId, generateMeetingId, generateLeaveRequestId, generateTimeLogId, generateRecurringInvoiceId, generateRecurringExpenseId, generateInvoiceNumber } from './utils/idGenerator';
 import { useLocalization } from './contexts/LocalizationContext';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { NotificationProvider, useNotification } from './components/common/Notification';
+import LoadingScreen from './components/common/LoadingScreen';
+import { useErrorHandler } from './utils/errorHandling';
 
 import Login from './components/Login';
 import Signup from './components/Signup';
@@ -14,6 +22,7 @@ import Jobs from './components/Jobs';
 import AICoach from './components/AICoach';
 import Settings from './components/Settings';
 import Projects from './components/Projects';
+import ProjectsModern from './components/ProjectsModern';
 import GenAILab from './components/GenAILab';
 import CourseDetail from './components/CourseDetail';
 import CourseManagement from './components/CourseManagement';
@@ -31,16 +40,16 @@ import Finance from './components/Finance';
 
 
 const App: React.FC = () => {
-  const { user, login } = useAuth();
+  const { user, login, isLoading } = useAuth();
+  const { currentPage, navigateTo, getDisplayPage, isLoadingPage } = useNavigation();
   const { t } = useLocalization();
   const [authView, setAuthView] = useState<'login' | 'signup'>('login');
-  const [currentView, setCurrentView] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   
   // Lifted State
   const [courses, setCourses] = useState<Course[]>(mockCourses);
   const [jobs, setJobs] = useState<Job[]>(mockJobs);
-  const [projects, setProjects] = useState<Project[]>(mockProjects);
+  const [projects, setProjects] = useState<Project[]>([]); // ✅ Données Appwrite uniquement
   const [objectives, setObjectives] = useState<Objective[]>(mockGoals);
   const [contacts, setContacts] = useState<Contact[]>(mockContacts);
   const [documents, setDocuments] = useState<Document[]>(mockDocuments);
@@ -59,6 +68,51 @@ const App: React.FC = () => {
 
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
   
+  // Charger les données depuis Appwrite quand l'utilisateur se connecte
+  useEffect(() => {
+    if (user && user.id) {
+      loadUserData();
+    }
+  }, [user]);
+
+  const loadUserData = async () => {
+    if (!user?.id) return;
+    
+    try {
+      // Tester la connexion Appwrite
+      const isConnected = await testConnection();
+      if (!isConnected) {
+        console.warn('Appwrite non connecté, utilisation des données mockées');
+        return;
+      }
+
+      console.log('🔄 Chargement des données depuis Appwrite...');
+      
+      // Charger les projets (toujours, même si vide)
+      const appwriteProjects = await projectService.getAll();
+      setProjects(appwriteProjects); // Toujours mettre à jour
+      
+      if (appwriteProjects.length > 0) {
+        console.log(`✅ ${appwriteProjects.length} projets chargés depuis Appwrite`);
+      } else {
+        console.log('ℹ️ Aucun projet trouvé - Base de données vide');
+      }
+      
+      // Charger les utilisateurs
+      const appwriteUsers = await userService.getAll();
+      if (appwriteUsers.length > 0) {
+        setUsers(appwriteUsers);
+        console.log(`✅ ${appwriteUsers.length} utilisateurs chargés depuis Appwrite`);
+      }
+      
+      console.log('✅ Données Appwrite chargées avec succès');
+      
+    } catch (error) {
+      console.error('❌ Erreur chargement données Appwrite:', error);
+      setProjects([]); // S'assurer que projects est vide en cas d'erreur
+    }
+  };
+  
     // --- Recurring Item Generation ---
     useEffect(() => {
         const today = new Date();
@@ -74,8 +128,8 @@ const App: React.FC = () => {
 
             if (today >= nextGen && (!ri.endDate || today <= new Date(ri.endDate))) {
                 newInvoices.push({
-                    id: Date.now() + Math.random(),
-                    invoiceNumber: `INV-${Date.now().toString().slice(-5)}`,
+                    id: generateInvoiceId(),
+                    invoiceNumber: generateInvoiceNumber(),
                     clientName: ri.clientName,
                     amount: ri.amount,
                     dueDate: nextGen.toISOString().split('T')[0],
@@ -102,7 +156,7 @@ const App: React.FC = () => {
 
             if (today >= nextGen && (!re.endDate || today <= new Date(re.endDate))) {
                  newExpenses.push({
-                    id: Date.now() + Math.random(),
+                    id: generateExpenseId(),
                     category: re.category,
                     description: re.description,
                     amount: re.amount,
@@ -172,16 +226,23 @@ const App: React.FC = () => {
 
   // --- Signup Handler ---
   const handleUserSignup = (signupData: Omit<User, 'id' | 'avatar' | 'skills'>) => {
+    const userId = generateUserId();
     const newUser: User = {
-      id: Date.now(),
+      id: userId,
       ...signupData,
-      avatar: `https://picsum.photos/seed/${Date.now()}/100/100`,
+      avatar: `https://picsum.photos/seed/${userId}/100/100`,
       skills: [],
     };
     setUsers(prev => [...prev, newUser]);
     login(newUser);
   };
 
+  // Écran de chargement pour éviter le flash (loading général + loading page)
+  if (isLoading || isLoadingPage) {
+    return <LoadingScreen />;
+  }
+
+  // Gestion de l'authentification
   if (!user) {
     if (authView === 'signup') {
         return <Signup onSignup={handleUserSignup} onSwitchToLogin={() => setAuthView('login')} allUsers={users} />;
@@ -201,49 +262,49 @@ const App: React.FC = () => {
     };
 
     // RECURRING INVOICES
-    const handleAddRecurringInvoice = (data: Omit<RecurringInvoice, 'id'>) => setRecurringInvoices(prev => [{ ...data, id: Date.now() }, ...prev]);
+    const handleAddRecurringInvoice = (data: Omit<RecurringInvoice, 'id'>) => setRecurringInvoices(prev => [{ ...data, id: generateRecurringInvoiceId() }, ...prev]);
     const handleUpdateRecurringInvoice = (updated: RecurringInvoice) => setRecurringInvoices(prev => prev.map(i => i.id === updated.id ? updated : i));
-    const handleDeleteRecurringInvoice = (id: number) => setRecurringInvoices(prev => prev.filter(i => i.id !== id));
+    const handleDeleteRecurringInvoice = (id: string) => setRecurringInvoices(prev => prev.filter(i => i.id !== id));
 
     // RECURRING EXPENSES
-    const handleAddRecurringExpense = (data: Omit<RecurringExpense, 'id'>) => setRecurringExpenses(prev => [{ ...data, id: Date.now() }, ...prev]);
+    const handleAddRecurringExpense = (data: Omit<RecurringExpense, 'id'>) => setRecurringExpenses(prev => [{ ...data, id: generateRecurringExpenseId() }, ...prev]);
     const handleUpdateRecurringExpense = (updated: RecurringExpense) => setRecurringExpenses(prev => prev.map(e => e.id === updated.id ? updated : e));
-    const handleDeleteRecurringExpense = (id: number) => setRecurringExpenses(prev => prev.filter(e => e.id !== id));
+    const handleDeleteRecurringExpense = (id: string) => setRecurringExpenses(prev => prev.filter(e => e.id !== id));
 
 
   // INVOICES
     const handleAddInvoice = (invoiceData: Omit<Invoice, 'id'>) => {
-        const newInvoice: Invoice = { ...invoiceData, id: Date.now() };
+        const newInvoice: Invoice = { ...invoiceData, id: generateInvoiceId() };
         setInvoices(prev => [newInvoice, ...prev]);
     };
     const handleUpdateInvoice = (updatedInvoice: Invoice) => {
         setInvoices(prev => prev.map(i => i.id === updatedInvoice.id ? updatedInvoice : i));
     };
-    const handleDeleteInvoice = (invoiceId: number) => {
+    const handleDeleteInvoice = (invoiceId: string) => {
         setInvoices(prev => prev.filter(i => i.id !== invoiceId));
     };
 
     // EXPENSES
     const handleAddExpense = (expenseData: Omit<Expense, 'id'>) => {
-        const newExpense: Expense = { ...expenseData, id: Date.now() };
+        const newExpense: Expense = { ...expenseData, id: generateExpenseId() };
         setExpenses(prev => [newExpense, ...prev]);
     };
     const handleUpdateExpense = (updatedExpense: Expense) => {
         setExpenses(prev => prev.map(e => e.id === updatedExpense.id ? updatedExpense : e));
     };
-    const handleDeleteExpense = (expenseId: number) => {
+    const handleDeleteExpense = (expenseId: string) => {
         setExpenses(prev => prev.filter(e => e.id !== expenseId));
     };
     
     // BUDGETS
     const handleAddBudget = (budgetData: Omit<Budget, 'id'>) => {
-        const newBudget: Budget = { ...budgetData, id: Date.now() };
+        const newBudget: Budget = { ...budgetData, id: generateBudgetId() };
         setBudgets(prev => [newBudget, ...prev]);
     };
     const handleUpdateBudget = (updatedBudget: Budget) => {
         setBudgets(prev => prev.map(b => b.id === updatedBudget.id ? updatedBudget : b));
     };
-    const handleDeleteBudget = (budgetId: number) => {
+    const handleDeleteBudget = (budgetId: string) => {
         const budgetToDelete = budgets.find(b => b.id === budgetId);
         if (!budgetToDelete) return;
         
@@ -266,13 +327,13 @@ const App: React.FC = () => {
 
   // MEETINGS
   const handleAddMeeting = (meetingData: Omit<Meeting, 'id'>) => {
-      const newMeeting: Meeting = { ...meetingData, id: Date.now() };
+      const newMeeting: Meeting = { ...meetingData, id: generateMeetingId() };
       setMeetings(prev => [newMeeting, ...prev].sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
   };
   const handleUpdateMeeting = (updatedMeeting: Meeting) => {
       setMeetings(prev => prev.map(m => m.id === updatedMeeting.id ? updatedMeeting : m).sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
   };
-  const handleDeleteMeeting = (meetingId: number) => {
+  const handleDeleteMeeting = (meetingId: string) => {
       setMeetings(prev => prev.filter(m => m.id !== meetingId));
   };
 
@@ -281,7 +342,7 @@ const App: React.FC = () => {
   const handleAddLeaveRequest = (requestData: Omit<LeaveRequest, 'id' | 'userId' | 'userName' | 'userAvatar' | 'status'>) => {
     if (!user) return;
     const newRequest: LeaveRequest = {
-      id: Date.now(),
+      id: generateLeaveRequestId(),
       userId: user.id,
       userName: user.name,
       userAvatar: user.avatar,
@@ -291,7 +352,7 @@ const App: React.FC = () => {
     setLeaveRequests(prev => [newRequest, ...prev]);
   };
 
-  const handleUpdateLeaveRequestStatus = (requestId: number, status: 'Approved' | 'Rejected') => {
+  const handleUpdateLeaveRequestStatus = (requestId: string, status: 'Approved' | 'Rejected') => {
       setLeaveRequests(prev => prev.map(req => req.id === requestId ? {...req, status} : req));
   }
 
@@ -300,7 +361,7 @@ const App: React.FC = () => {
   const handleAddTimeLog = (logData: Omit<TimeLog, 'id' | 'userId'>) => {
     if (!user) return;
     const newLog: TimeLog = {
-      id: Date.now(),
+      id: generateTimeLogId(),
       userId: user.id,
       ...logData,
     };
@@ -325,21 +386,107 @@ const App: React.FC = () => {
   };
   
   // PROJECTS
-  const handleAddProject = (projectData: Omit<Project, 'id' | 'tasks' | 'risks'>) => {
+  const handleAddProject = async (projectData: Omit<Project, 'id' | 'tasks' | 'risks'>) => {
+      if (user?.id) {
+          try {
+              // Sauvegarder dans Appwrite
+              const savedProject = await projectService.create({
+                  ...projectData,
+                  tasks: [],
+                  risks: []
+              }, user.id);
+              
+              if (savedProject) {
+                  setProjects(prev => [savedProject, ...prev]);
+                  
+                  // Notification de succès
+                  addToast({
+                      message: `Projet "${savedProject.title}" créé avec succès ! 🎉`,
+                      type: 'success'
+                  });
+                  
+                  console.log('✅ Projet sauvegardé dans Appwrite');
+                  return;
+              }
+          } catch (error) {
+              // Notification d'erreur
+              addToast({
+                  message: `Erreur lors de la création du projet : ${error instanceof Error ? error.message : 'Erreur inconnue'}`,
+                  type: 'error'
+              });
+              throw error;
+          }
+      }
+      
+      // Fallback vers les données locales
       const newProject: Project = {
-          id: Date.now(),
+          id: generateProjectId(),
           ...projectData,
           tasks: [],
           risks: [],
+          tags: projectData.tags || [],
+          priority: projectData.priority || 'Medium',
       };
       setProjects(prev => [newProject, ...prev]);
+      
+      // Notification pour mode hors ligne
+      addToast({
+          message: 'Projet créé (mode hors ligne)',
+          type: 'info'
+      });
   };
   
-  const handleUpdateProject = (updatedProject: Project) => {
-    setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+  const handleUpdateProject = async (updatedProject: Project) => {
+      if (user?.id && typeof updatedProject.id === 'string') {
+          try {
+              // Mettre à jour dans Appwrite
+              const success = await projectService.update(updatedProject.id, updatedProject, user.id);
+              
+              if (success) {
+                  setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+                  
+                  // Notification de succès
+                  addToast({
+                      message: `Projet "${updatedProject.title}" mis à jour avec succès ! ✅`,
+                      type: 'success'
+                  });
+                  
+                  console.log('✅ Projet mis à jour dans Appwrite');
+                  return;
+              }
+          } catch (error) {
+              // Notification d'erreur
+              addToast({
+                  message: `Erreur lors de la mise à jour : ${error instanceof Error ? error.message : 'Erreur inconnue'}`,
+                  type: 'error'
+              });
+              throw error;
+          }
+      }
+      
+      // Fallback vers les données locales
+      setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+      
+      addToast({
+          message: 'Projet mis à jour (mode hors ligne)',
+          type: 'info'
+      });
   };
   
-  const handleDeleteProject = (projectId: number) => {
+  const handleDeleteProject = async (projectId: number | string) => {
+      if (user?.id && typeof projectId === 'string') {
+          // Essayer de supprimer dans Appwrite
+          const success = await projectService.delete(projectId);
+          if (success) {
+              setProjects(prev => prev.filter(p => p.id !== projectId));
+              console.log('✅ Projet supprimé de Appwrite');
+              // Also delete related OKRs
+              setObjectives(prev => prev.filter(o => o.projectId !== projectId));
+              return;
+          }
+      }
+      
+      // Fallback vers les données locales
       setProjects(prev => prev.filter(p => p.id !== projectId));
       // Also delete related OKRs
       setObjectives(prev => prev.filter(o => o.projectId !== projectId));
@@ -364,7 +511,7 @@ const App: React.FC = () => {
   // COURSES
   const handleAddCourse = (courseData: Omit<Course, 'id' | 'progress'>) => {
       const newCourse: Course = {
-          id: Date.now(),
+          id: generateCourseId(),
           progress: 0,
           ...courseData,
       };
@@ -373,20 +520,20 @@ const App: React.FC = () => {
   const handleUpdateCourse = (updatedCourse: Course) => {
       setCourses(prev => prev.map(c => c.id === updatedCourse.id ? updatedCourse : c));
   };
-  const handleDeleteCourse = (courseId: number) => {
+  const handleDeleteCourse = (courseId: string) => {
       setCourses(prev => prev.filter(c => c.id !== courseId));
   };
 
 
   // CONTACTS (CRM)
   const handleAddContact = (contactData: Omit<Contact, 'id'>) => {
-      const newContact: Contact = { ...contactData, id: Date.now() };
+      const newContact: Contact = { ...contactData, id: generateContactId() };
       setContacts(prev => [newContact, ...prev]);
   };
   const handleUpdateContact = (updatedContact: Contact) => {
       setContacts(prev => prev.map(c => c.id === updatedContact.id ? updatedContact : c));
   };
-  const handleDeleteContact = (contactId: number) => {
+  const handleDeleteContact = (contactId: string) => {
       setContacts(prev => prev.filter(c => c.id !== contactId));
   };
 
@@ -399,7 +546,7 @@ const App: React.FC = () => {
   // --- View Management ---
 
   const handleSetView = (view: string) => {
-    setCurrentView(view);
+    navigateTo(view);
     if (view !== 'course_detail') {
       setSelectedCourseId(null);
     }
@@ -410,11 +557,11 @@ const App: React.FC = () => {
 
   const handleSelectCourse = (id: number) => {
     setSelectedCourseId(id);
-    setCurrentView('course_detail');
+    navigateTo('course_detail');
   }
 
   const renderView = () => {
-    switch (currentView) {
+    switch (currentPage) {
       case 'dashboard':
         return <Dashboard setView={handleSetView} projects={projects} courses={courses} jobs={jobs} timeLogs={timeLogs} leaveRequests={leaveRequests} invoices={invoices} expenses={expenses} />;
       case 'time_tracking':
@@ -430,7 +577,7 @@ const App: React.FC = () => {
                     onDeleteMeeting={handleDeleteMeeting}
                 />;
       case 'projects':
-        return <Projects 
+        return <ProjectsModern 
                     projects={projects} 
                     users={users}
                     timeLogs={timeLogs}
@@ -520,26 +667,42 @@ const App: React.FC = () => {
     }
   };
   
-  return (
-    <div className="flex h-screen bg-gray-100">
-      <Sidebar currentView={currentView} setView={handleSetView} isOpen={isSidebarOpen} />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header 
-            toggleSidebar={() => setSidebarOpen(!isSidebarOpen)} 
-            setView={handleSetView}
-            notifications={notifications}
-            onMarkNotificationAsRead={handleMarkNotificationAsRead}
-            onClearAllNotifications={handleClearAllNotifications}
-        />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
-          <div className="container mx-auto px-6 py-8">
-            {renderView()}
-          </div>
-        </main>
+  // Écran de chargement pendant la vérification de session
+  if (isLoading) {
+    return (
+      <div className="flex h-screen bg-gray-100 items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Chargement d'Ecosystia...</p>
+        </div>
       </div>
-       {isSidebarOpen && <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-black opacity-50 z-40 lg:hidden"></div>}
-       <AIAgent currentView={currentView} />
-    </div>
+    );
+  }
+
+  return (
+    <ErrorBoundary>
+      <NotificationProvider>
+        <div className="flex h-screen bg-gray-100">
+          <Sidebar currentView={currentPage} setView={handleSetView} isOpen={isSidebarOpen} />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <Header 
+                toggleSidebar={() => setSidebarOpen(!isSidebarOpen)} 
+                setView={handleSetView}
+                notifications={notifications}
+                onMarkNotificationAsRead={handleMarkNotificationAsRead}
+                onClearAllNotifications={handleClearAllNotifications}
+            />
+            <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
+              <div className="container mx-auto px-6 py-8">
+                {renderView()}
+              </div>
+            </main>
+          </div>
+           {isSidebarOpen && <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-black opacity-50 z-40 lg:hidden"></div>}
+           <AIAgent currentView={currentPage} />
+        </div>
+      </NotificationProvider>
+    </ErrorBoundary>
   );
 };
 

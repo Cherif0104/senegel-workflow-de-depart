@@ -1,656 +1,532 @@
-/**
- * SERVICE FINANCE - ERP SENEGEL
- * Gestion des factures, dépenses et budgets
- */
+import { databases, DATABASE_ID, ID, Query } from './appwriteService';
+import { Invoice, Expense, Budget, RecurringInvoice, RecurringExpense, BudgetItem, FinancialMetrics } from '../types';
 
-import { databases, DATABASE_ID, COLLECTION_IDS } from './appwriteService';
-import { ID, Query } from 'appwrite';
+class FinanceService {
+  private get invoicesCollectionId() {
+    return 'invoices';
+  }
 
-// ============================================
-// INVOICE SERVICE (Factures)
-// ============================================
+  private get expensesCollectionId() {
+    return 'expenses';
+  }
 
-export const invoiceService = {
-  /**
-   * Liste toutes les factures
-   */
-  async list(filters?: { status?: string; clientName?: string; limit?: number }) {
-    const queries = [Query.orderDesc('$createdAt')];
-    
-    if (filters?.status) {
-      queries.push(Query.equal('status', filters.status));
-    }
-    
-    if (filters?.clientName) {
-      queries.push(Query.search('clientName', filters.clientName));
-    }
-    
-    queries.push(Query.limit(filters?.limit || 100));
-    
+  private get budgetsCollectionId() {
+    return 'budgets';
+  }
+
+  private get recurringInvoicesCollectionId() {
+    return 'recurring_invoices';
+  }
+
+  private get recurringExpensesCollectionId() {
+    return 'recurring_expenses';
+  }
+
+  private get budgetItemsCollectionId() {
+    return 'budget_items';
+  }
+
+  // ===== INVOICES =====
+
+  private mapInvoiceFromAppwrite(doc: any): Invoice {
+    return {
+      id: doc.$id,
+      invoiceNumber: doc.invoiceNumber,
+      clientName: doc.clientName,
+      amount: doc.amount,
+      dueDate: doc.dueDate,
+      status: doc.status,
+      paidAmount: doc.paidAmount,
+      paidDate: doc.paidDate,
+      receipt: doc.receipt,
+      createdAt: doc.$createdAt,
+      updatedAt: doc.$updatedAt,
+    };
+  }
+
+  private mapInvoiceToAppwrite(invoice: Partial<Invoice>): any {
+    const data: any = {};
+    if (invoice.invoiceNumber !== undefined) data.invoiceNumber = invoice.invoiceNumber;
+    if (invoice.clientName !== undefined) data.clientName = invoice.clientName;
+    if (invoice.amount !== undefined) data.amount = invoice.amount;
+    if (invoice.dueDate !== undefined) data.dueDate = invoice.dueDate;
+    if (invoice.status !== undefined) data.status = invoice.status;
+    if (invoice.paidAmount !== undefined) data.paidAmount = invoice.paidAmount;
+    if (invoice.paidDate !== undefined) data.paidDate = invoice.paidDate;
+    if (invoice.receipt !== undefined) data.receipt = invoice.receipt;
+    return data;
+  }
+
+  async createInvoice(invoiceData: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>): Promise<Invoice | null> {
     try {
-      return await databases.listDocuments(
+      const appwriteData = this.mapInvoiceToAppwrite(invoiceData);
+      const response = await databases.createDocument(
         DATABASE_ID,
-        COLLECTION_IDS.INVOICES,
-        queries
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération des factures:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Récupère une facture par ID
-   */
-  async get(invoiceId: string) {
-    try {
-      return await databases.getDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.INVOICES,
-        invoiceId
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération de la facture:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Crée une nouvelle facture
-   */
-  async create(invoiceData: any, userId: string) {
-    try {
-      const invoice = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.INVOICES,
+        this.invoicesCollectionId,
         ID.unique(),
-        {
-          ...invoiceData,
-          createdBy: userId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
+        appwriteData
       );
-      
-      console.log('✅ Facture créée:', invoice.$id);
-      return invoice;
+      console.log('✅ Facture créée dans Appwrite:', response.$id);
+      return this.mapInvoiceFromAppwrite(response);
     } catch (error) {
-      console.error('❌ Erreur lors de la création de la facture:', error);
+      console.error('❌ Erreur création facture:', error);
       throw error;
     }
-  },
+  }
 
-  /**
-   * Met à jour une facture
-   */
-  async update(invoiceId: string, data: any) {
+  async getInvoices(): Promise<Invoice[]> {
     try {
-      const invoice = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.INVOICES,
-        invoiceId,
-        {
-          ...data,
-          updatedAt: new Date().toISOString(),
-        }
-      );
-      
-      console.log('✅ Facture mise à jour:', invoiceId);
-      return invoice;
-    } catch (error) {
-      console.error('❌ Erreur lors de la mise à jour de la facture:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Supprime une facture
-   */
-  async delete(invoiceId: string) {
-    try {
-      await databases.deleteDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.INVOICES,
-        invoiceId
-      );
-      
-      console.log('✅ Facture supprimée:', invoiceId);
-      return true;
-    } catch (error) {
-      console.error('❌ Erreur lors de la suppression de la facture:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Récupère les factures d'un client
-   */
-  async getByClient(clientName: string) {
-    try {
-      return await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_IDS.INVOICES,
-        [
-          Query.equal('clientName', clientName),
-          Query.orderDesc('$createdAt'),
-          Query.limit(50)
-        ]
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération des factures du client:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Calcule le total des factures
-   */
-  async getTotalAmount(status?: string) {
-    try {
-      const queries = status ? [Query.equal('status', status)] : [];
-      queries.push(Query.limit(1000)); // Limite pour éviter trop de données
-      
       const response = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTION_IDS.INVOICES,
-        queries
+        this.invoicesCollectionId
       );
-      
-      const total = response.documents.reduce((sum, doc) => {
-        return sum + (parseFloat(doc.amount) || 0);
-      }, 0);
-      
-      return total;
+      console.log(`✅ ${response.documents.length} factures récupérées`);
+      return response.documents.map(doc => this.mapInvoiceFromAppwrite(doc));
     } catch (error) {
-      console.error('Erreur lors du calcul du total:', error);
-      return 0;
+      console.error('❌ Erreur récupération factures:', error);
+      return [];
     }
-  },
-};
+  }
 
-// ============================================
-// EXPENSE SERVICE (Dépenses)
-// ============================================
-
-export const expenseService = {
-  /**
-   * Liste toutes les dépenses
-   */
-  async list(filters?: { category?: string; status?: string; limit?: number }) {
-    const queries = [Query.orderDesc('date')];
-    
-    if (filters?.category) {
-      queries.push(Query.equal('category', filters.category));
-    }
-    
-    if (filters?.status) {
-      queries.push(Query.equal('status', filters.status));
-    }
-    
-    queries.push(Query.limit(filters?.limit || 100));
-    
+  async getInvoiceById(id: string): Promise<Invoice | null> {
     try {
-      return await databases.listDocuments(
+      const response = await databases.getDocument(
         DATABASE_ID,
-        COLLECTION_IDS.EXPENSES,
-        queries
+        this.invoicesCollectionId,
+        id
       );
+      console.log('✅ Facture récupérée:', id);
+      return this.mapInvoiceFromAppwrite(response);
     } catch (error) {
-      console.error('Erreur lors de la récupération des dépenses:', error);
+      console.error('❌ Erreur récupération facture:', error);
+      return null;
+    }
+  }
+
+  async updateInvoice(id: string, invoiceData: Partial<Invoice>): Promise<Invoice | null> {
+    try {
+      const appwriteData = this.mapInvoiceToAppwrite(invoiceData);
+      const response = await databases.updateDocument(
+        DATABASE_ID,
+        this.invoicesCollectionId,
+        id,
+        appwriteData
+      );
+      console.log('✅ Facture mise à jour dans Appwrite:', id);
+      return this.mapInvoiceFromAppwrite(response);
+    } catch (error) {
+      console.error('❌ Erreur mise à jour facture:', error);
       throw error;
     }
-  },
+  }
 
-  /**
-   * Récupère une dépense par ID
-   */
-  async get(expenseId: string) {
-    try {
-      return await databases.getDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.EXPENSES,
-        expenseId
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération de la dépense:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Crée une nouvelle dépense
-   */
-  async create(expenseData: any, userId: string) {
-    try {
-      const expense = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.EXPENSES,
-        ID.unique(),
-        {
-          ...expenseData,
-          createdBy: userId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-      );
-      
-      console.log('✅ Dépense créée:', expense.$id);
-      return expense;
-    } catch (error) {
-      console.error('❌ Erreur lors de la création de la dépense:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Met à jour une dépense
-   */
-  async update(expenseId: string, data: any) {
-    try {
-      const expense = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.EXPENSES,
-        expenseId,
-        {
-          ...data,
-          updatedAt: new Date().toISOString(),
-        }
-      );
-      
-      console.log('✅ Dépense mise à jour:', expenseId);
-      return expense;
-    } catch (error) {
-      console.error('❌ Erreur lors de la mise à jour de la dépense:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Supprime une dépense
-   */
-  async delete(expenseId: string) {
+  async deleteInvoice(id: string): Promise<boolean> {
     try {
       await databases.deleteDocument(
         DATABASE_ID,
-        COLLECTION_IDS.EXPENSES,
-        expenseId
+        this.invoicesCollectionId,
+        id
       );
-      
-      console.log('✅ Dépense supprimée:', expenseId);
+      console.log('✅ Facture supprimée de Appwrite:', id);
       return true;
     } catch (error) {
-      console.error('❌ Erreur lors de la suppression de la dépense:', error);
-      throw error;
+      console.error('❌ Erreur suppression facture:', error);
+      return false;
     }
-  },
+  }
 
-  /**
-   * Récupère les dépenses par catégorie
-   */
-  async getByCategory(category: string) {
+  // ===== EXPENSES =====
+
+  private mapExpenseFromAppwrite(doc: any): Expense {
+    return {
+      id: doc.$id,
+      category: doc.category,
+      description: doc.description,
+      amount: doc.amount,
+      date: doc.date,
+      dueDate: doc.dueDate,
+      status: doc.status,
+      budgetItemId: doc.budgetItemId,
+      receipt: doc.receipt,
+      createdAt: doc.$createdAt,
+      updatedAt: doc.$updatedAt,
+    };
+  }
+
+  private mapExpenseToAppwrite(expense: Partial<Expense>): any {
+    const data: any = {};
+    if (expense.category !== undefined) data.category = expense.category;
+    if (expense.description !== undefined) data.description = expense.description;
+    if (expense.amount !== undefined) data.amount = expense.amount;
+    if (expense.date !== undefined) data.date = expense.date;
+    if (expense.dueDate !== undefined) data.dueDate = expense.dueDate;
+    if (expense.status !== undefined) data.status = expense.status;
+    if (expense.budgetItemId !== undefined) data.budgetItemId = expense.budgetItemId;
+    if (expense.receipt !== undefined) data.receipt = expense.receipt;
+    return data;
+  }
+
+  async createExpense(expenseData: Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>): Promise<Expense | null> {
     try {
-      return await databases.listDocuments(
+      const appwriteData = this.mapExpenseToAppwrite(expenseData);
+      const response = await databases.createDocument(
         DATABASE_ID,
-        COLLECTION_IDS.EXPENSES,
-        [
-          Query.equal('category', category),
-          Query.orderDesc('date'),
-          Query.limit(100)
-        ]
+        this.expensesCollectionId,
+        ID.unique(),
+        appwriteData
       );
+      console.log('✅ Dépense créée dans Appwrite:', response.$id);
+      return this.mapExpenseFromAppwrite(response);
     } catch (error) {
-      console.error('Erreur lors de la récupération des dépenses par catégorie:', error);
+      console.error('❌ Erreur création dépense:', error);
       throw error;
     }
-  },
+  }
 
-  /**
-   * Calcule le total des dépenses
-   */
-  async getTotalAmount(filters?: { category?: string; startDate?: string; endDate?: string }) {
+  async getExpenses(): Promise<Expense[]> {
     try {
-      const queries: any[] = [];
-      
-      if (filters?.category) {
-        queries.push(Query.equal('category', filters.category));
-      }
-      
-      if (filters?.startDate) {
-        queries.push(Query.greaterThanEqual('date', filters.startDate));
-      }
-      
-      if (filters?.endDate) {
-        queries.push(Query.lessThanEqual('date', filters.endDate));
-      }
-      
-      queries.push(Query.limit(1000));
-      
       const response = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTION_IDS.EXPENSES,
-        queries
+        this.expensesCollectionId
       );
-      
-      const total = response.documents.reduce((sum, doc) => {
-        return sum + (parseFloat(doc.amount) || 0);
-      }, 0);
-      
-      return total;
+      console.log(`✅ ${response.documents.length} dépenses récupérées`);
+      return response.documents.map(doc => this.mapExpenseFromAppwrite(doc));
     } catch (error) {
-      console.error('Erreur lors du calcul du total des dépenses:', error);
-      return 0;
+      console.error('❌ Erreur récupération dépenses:', error);
+      return [];
     }
-  },
-};
+  }
 
-// ============================================
-// BUDGET SERVICE (Budgets)
-// ============================================
-
-export const budgetService = {
-  /**
-   * Liste tous les budgets
-   */
-  async list(filters?: { type?: string; projectId?: string }) {
-    const queries = [Query.orderDesc('$createdAt')];
-    
-    if (filters?.type) {
-      queries.push(Query.equal('type', filters.type));
-    }
-    
-    if (filters?.projectId) {
-      queries.push(Query.equal('projectId', filters.projectId));
-    }
-    
-    queries.push(Query.limit(100));
-    
+  async getExpenseById(id: string): Promise<Expense | null> {
     try {
-      return await databases.listDocuments(
+      const response = await databases.getDocument(
         DATABASE_ID,
-        COLLECTION_IDS.BUDGETS,
-        queries
+        this.expensesCollectionId,
+        id
       );
+      console.log('✅ Dépense récupérée:', id);
+      return this.mapExpenseFromAppwrite(response);
     } catch (error) {
-      console.error('Erreur lors de la récupération des budgets:', error);
+      console.error('❌ Erreur récupération dépense:', error);
+      return null;
+    }
+  }
+
+  async updateExpense(id: string, expenseData: Partial<Expense>): Promise<Expense | null> {
+    try {
+      const appwriteData = this.mapExpenseToAppwrite(expenseData);
+      const response = await databases.updateDocument(
+        DATABASE_ID,
+        this.expensesCollectionId,
+        id,
+        appwriteData
+      );
+      console.log('✅ Dépense mise à jour dans Appwrite:', id);
+      return this.mapExpenseFromAppwrite(response);
+    } catch (error) {
+      console.error('❌ Erreur mise à jour dépense:', error);
       throw error;
     }
-  },
+  }
 
-  /**
-   * Récupère un budget par ID
-   */
-  async get(budgetId: string) {
-    try {
-      return await databases.getDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.BUDGETS,
-        budgetId
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération du budget:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Crée un nouveau budget
-   */
-  async create(budgetData: any, userId: string) {
-    try {
-      const budget = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.BUDGETS,
-        ID.unique(),
-        {
-          ...budgetData,
-          createdBy: userId,
-          spent: 0, // Montant dépensé initial
-          remaining: budgetData.amount, // Montant restant initial
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-      );
-      
-      console.log('✅ Budget créé:', budget.$id);
-      return budget;
-    } catch (error) {
-      console.error('❌ Erreur lors de la création du budget:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Met à jour un budget
-   */
-  async update(budgetId: string, data: any) {
-    try {
-      const budget = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.BUDGETS,
-        budgetId,
-        {
-          ...data,
-          updatedAt: new Date().toISOString(),
-        }
-      );
-      
-      console.log('✅ Budget mis à jour:', budgetId);
-      return budget;
-    } catch (error) {
-      console.error('❌ Erreur lors de la mise à jour du budget:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Supprime un budget
-   */
-  async delete(budgetId: string) {
+  async deleteExpense(id: string): Promise<boolean> {
     try {
       await databases.deleteDocument(
         DATABASE_ID,
-        COLLECTION_IDS.BUDGETS,
-        budgetId
+        this.expensesCollectionId,
+        id
       );
-      
-      console.log('✅ Budget supprimé:', budgetId);
+      console.log('✅ Dépense supprimée de Appwrite:', id);
       return true;
     } catch (error) {
-      console.error('❌ Erreur lors de la suppression du budget:', error);
+      console.error('❌ Erreur suppression dépense:', error);
+      return false;
+    }
+  }
+
+  // ===== BUDGETS =====
+
+  private mapBudgetFromAppwrite(doc: any): Budget {
+    return {
+      id: doc.$id,
+      name: doc.name,
+      type: doc.type,
+      totalAmount: doc.totalAmount,
+      spentAmount: doc.spentAmount || 0,
+      startDate: doc.startDate,
+      endDate: doc.endDate,
+      items: doc.items || [],
+      createdAt: doc.$createdAt,
+      updatedAt: doc.$updatedAt,
+    };
+  }
+
+  private mapBudgetToAppwrite(budget: Partial<Budget>): any {
+    const data: any = {};
+    if (budget.name !== undefined) data.name = budget.name;
+    if (budget.type !== undefined) data.type = budget.type;
+    if (budget.totalAmount !== undefined) data.totalAmount = budget.totalAmount;
+    if (budget.spentAmount !== undefined) data.spentAmount = budget.spentAmount;
+    if (budget.startDate !== undefined) data.startDate = budget.startDate;
+    if (budget.endDate !== undefined) data.endDate = budget.endDate;
+    if (budget.items !== undefined) data.items = budget.items;
+    return data;
+  }
+
+  async createBudget(budgetData: Omit<Budget, 'id' | 'createdAt' | 'updatedAt'>): Promise<Budget | null> {
+    try {
+      const appwriteData = this.mapBudgetToAppwrite(budgetData);
+      const response = await databases.createDocument(
+        DATABASE_ID,
+        this.budgetsCollectionId,
+        ID.unique(),
+        appwriteData
+      );
+      console.log('✅ Budget créé dans Appwrite:', response.$id);
+      return this.mapBudgetFromAppwrite(response);
+    } catch (error) {
+      console.error('❌ Erreur création budget:', error);
       throw error;
     }
-  },
+  }
 
-  /**
-   * Met à jour le montant dépensé d'un budget
-   */
-  async updateSpent(budgetId: string, spentAmount: number) {
+  async getBudgets(): Promise<Budget[]> {
     try {
-      const budget = await this.get(budgetId);
-      const totalAmount = parseFloat(budget.amount) || 0;
-      const remaining = totalAmount - spentAmount;
-      
-      return await this.update(budgetId, {
-        spent: spentAmount,
-        remaining: remaining,
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        this.budgetsCollectionId
+      );
+      console.log(`✅ ${response.documents.length} budgets récupérés`);
+      return response.documents.map(doc => this.mapBudgetFromAppwrite(doc));
+    } catch (error) {
+      console.error('❌ Erreur récupération budgets:', error);
+      return [];
+    }
+  }
+
+  async updateBudget(id: string, budgetData: Partial<Budget>): Promise<Budget | null> {
+    try {
+      const appwriteData = this.mapBudgetToAppwrite(budgetData);
+      const response = await databases.updateDocument(
+        DATABASE_ID,
+        this.budgetsCollectionId,
+        id,
+        appwriteData
+      );
+      console.log('✅ Budget mis à jour dans Appwrite:', id);
+      return this.mapBudgetFromAppwrite(response);
+    } catch (error) {
+      console.error('❌ Erreur mise à jour budget:', error);
+      throw error;
+    }
+  }
+
+  async deleteBudget(id: string): Promise<boolean> {
+    try {
+      await databases.deleteDocument(
+        DATABASE_ID,
+        this.budgetsCollectionId,
+        id
+      );
+      console.log('✅ Budget supprimé de Appwrite:', id);
+      return true;
+    } catch (error) {
+      console.error('❌ Erreur suppression budget:', error);
+      return false;
+    }
+  }
+
+  // ===== RECURRING INVOICES =====
+
+  async createRecurringInvoice(data: Omit<RecurringInvoice, 'id'>): Promise<RecurringInvoice | null> {
+    try {
+      const response = await databases.createDocument(
+        DATABASE_ID,
+        this.recurringInvoicesCollectionId,
+        ID.unique(),
+        data
+      );
+      console.log('✅ Facture récurrente créée dans Appwrite:', response.$id);
+      return { ...data, id: response.$id };
+    } catch (error) {
+      console.error('❌ Erreur création facture récurrente:', error);
+      throw error;
+    }
+  }
+
+  async getRecurringInvoices(): Promise<RecurringInvoice[]> {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        this.recurringInvoicesCollectionId
+      );
+      console.log(`✅ ${response.documents.length} factures récurrentes récupérées`);
+      return response.documents.map(doc => ({ ...doc, id: doc.$id }));
+    } catch (error) {
+      console.error('❌ Erreur récupération factures récurrentes:', error);
+      return [];
+    }
+  }
+
+  // ===== RECURRING EXPENSES =====
+
+  async createRecurringExpense(data: Omit<RecurringExpense, 'id'>): Promise<RecurringExpense | null> {
+    try {
+      const response = await databases.createDocument(
+        DATABASE_ID,
+        this.recurringExpensesCollectionId,
+        ID.unique(),
+        data
+      );
+      console.log('✅ Dépense récurrente créée dans Appwrite:', response.$id);
+      return { ...data, id: response.$id };
+    } catch (error) {
+      console.error('❌ Erreur création dépense récurrente:', error);
+      throw error;
+    }
+  }
+
+  async getRecurringExpenses(): Promise<RecurringExpense[]> {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        this.recurringExpensesCollectionId
+      );
+      console.log(`✅ ${response.documents.length} dépenses récurrentes récupérées`);
+      return response.documents.map(doc => ({ ...doc, id: doc.$id }));
+    } catch (error) {
+      console.error('❌ Erreur récupération dépenses récurrentes:', error);
+      return [];
+    }
+  }
+
+  // ===== FINANCIAL METRICS =====
+
+  async getFinancialMetrics(): Promise<FinancialMetrics> {
+    try {
+      const [invoices, expenses] = await Promise.all([
+        this.getInvoices(),
+        this.getExpenses()
+      ]);
+
+      const totalRevenue = invoices
+        .filter(inv => inv.status === 'Paid')
+        .reduce((sum, inv) => sum + inv.amount, 0);
+
+      const totalExpenses = expenses
+        .filter(exp => exp.status === 'Paid')
+        .reduce((sum, exp) => sum + exp.amount, 0);
+
+      const outstandingInvoices = invoices
+        .filter(inv => ['Sent', 'Overdue', 'Partially Paid'].includes(inv.status))
+        .reduce((sum, inv) => {
+          if (inv.status === 'Partially Paid') {
+            return sum + (inv.amount - (inv.paidAmount || 0));
+          }
+          return sum + inv.amount;
+        }, 0);
+
+      const netIncome = totalRevenue - totalExpenses;
+
+      return {
+        totalRevenue,
+        totalExpenses,
+        netIncome,
+        outstandingInvoices,
+        paidInvoices: invoices.filter(inv => inv.status === 'Paid').length,
+        totalInvoices: invoices.length,
+        paidExpenses: expenses.filter(exp => exp.status === 'Paid').length,
+        totalExpensesCount: expenses.length,
+      };
+    } catch (error) {
+      console.error('❌ Erreur calcul métriques financières:', error);
+      throw error;
+    }
+  }
+
+  // ===== REPORTS =====
+
+  async getRevenueReport(period: string): Promise<any> {
+    try {
+      const invoices = await this.getInvoices();
+      const now = new Date();
+      let startDate: Date;
+
+      switch (period) {
+        case 'month':
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case 'quarter':
+          const quarter = Math.floor(now.getMonth() / 3);
+          startDate = new Date(now.getFullYear(), quarter * 3, 1);
+          break;
+        case 'year':
+          startDate = new Date(now.getFullYear(), 0, 1);
+          break;
+        default:
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days
+      }
+
+      const filteredInvoices = invoices.filter(inv => {
+        const invoiceDate = new Date(inv.createdAt);
+        return invoiceDate >= startDate;
       });
+
+      return {
+        period,
+        totalRevenue: filteredInvoices
+          .filter(inv => inv.status === 'Paid')
+          .reduce((sum, inv) => sum + inv.amount, 0),
+        totalInvoices: filteredInvoices.length,
+        paidInvoices: filteredInvoices.filter(inv => inv.status === 'Paid').length,
+        invoices: filteredInvoices,
+      };
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du montant dépensé:', error);
+      console.error('❌ Erreur génération rapport revenus:', error);
       throw error;
     }
-  },
+  }
 
-  /**
-   * Récupère les budgets d'un projet
-   */
-  async getByProject(projectId: string) {
+  async getExpenseReport(period: string): Promise<any> {
     try {
-      return await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_IDS.BUDGETS,
-        [
-          Query.equal('projectId', projectId),
-          Query.orderDesc('$createdAt'),
-        ]
-      );
+      const expenses = await this.getExpenses();
+      const now = new Date();
+      let startDate: Date;
+
+      switch (period) {
+        case 'month':
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case 'quarter':
+          const quarter = Math.floor(now.getMonth() / 3);
+          startDate = new Date(now.getFullYear(), quarter * 3, 1);
+          break;
+        case 'year':
+          startDate = new Date(now.getFullYear(), 0, 1);
+          break;
+        default:
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days
+      }
+
+      const filteredExpenses = expenses.filter(exp => {
+        const expenseDate = new Date(exp.date);
+        return expenseDate >= startDate;
+      });
+
+      return {
+        period,
+        totalExpenses: filteredExpenses
+          .filter(exp => exp.status === 'Paid')
+          .reduce((sum, exp) => sum + exp.amount, 0),
+        totalExpensesCount: filteredExpenses.length,
+        paidExpenses: filteredExpenses.filter(exp => exp.status === 'Paid').length,
+        expenses: filteredExpenses,
+      };
     } catch (error) {
-      console.error('Erreur lors de la récupération des budgets du projet:', error);
+      console.error('❌ Erreur génération rapport dépenses:', error);
       throw error;
     }
-  },
-};
+  }
+}
 
-// ============================================
-// RECURRING INVOICE SERVICE (Factures récurrentes)
-// ============================================
-
-export const recurringInvoiceService = {
-  /**
-   * Liste toutes les factures récurrentes
-   */
-  async list() {
-    try {
-      return await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_IDS.RECURRING_INVOICES,
-        [Query.orderDesc('$createdAt'), Query.limit(100)]
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération des factures récurrentes:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Crée une facture récurrente
-   */
-  async create(data: any, userId: string) {
-    try {
-      return await databases.createDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.RECURRING_INVOICES,
-        ID.unique(),
-        {
-          ...data,
-          createdBy: userId,
-          createdAt: new Date().toISOString(),
-        }
-      );
-    } catch (error) {
-      console.error('Erreur lors de la création de la facture récurrente:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Met à jour une facture récurrente
-   */
-  async update(id: string, data: any) {
-    try {
-      return await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.RECURRING_INVOICES,
-        id,
-        data
-      );
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Supprime une facture récurrente
-   */
-  async delete(id: string) {
-    try {
-      await databases.deleteDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.RECURRING_INVOICES,
-        id
-      );
-      return true;
-    } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
-      throw error;
-    }
-  },
-};
-
-// ============================================
-// RECURRING EXPENSE SERVICE (Dépenses récurrentes)
-// ============================================
-
-export const recurringExpenseService = {
-  /**
-   * Liste toutes les dépenses récurrentes
-   */
-  async list() {
-    try {
-      return await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_IDS.RECURRING_EXPENSES,
-        [Query.orderDesc('$createdAt'), Query.limit(100)]
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération des dépenses récurrentes:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Crée une dépense récurrente
-   */
-  async create(data: any, userId: string) {
-    try {
-      return await databases.createDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.RECURRING_EXPENSES,
-        ID.unique(),
-        {
-          ...data,
-          createdBy: userId,
-          createdAt: new Date().toISOString(),
-        }
-      );
-    } catch (error) {
-      console.error('Erreur lors de la création de la dépense récurrente:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Met à jour une dépense récurrente
-   */
-  async update(id: string, data: any) {
-    try {
-      return await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.RECURRING_EXPENSES,
-        id,
-        data
-      );
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Supprime une dépense récurrente
-   */
-  async delete(id: string) {
-    try {
-      await databases.deleteDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.RECURRING_EXPENSES,
-        id
-      );
-      return true;
-    } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
-      throw error;
-    }
-  },
-};
-
+export const financeService = new FinanceService();

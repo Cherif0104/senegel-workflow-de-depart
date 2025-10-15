@@ -2,8 +2,8 @@ import { Client, Databases, Account, Storage, ID, Query } from 'appwrite';
 
 // Initialize Appwrite Client
 const client = new Client()
-    .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://sfo.cloud.appwrite.io/v1')
-    .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID || '68e54e9c002cb568cfec');
+    .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1')
+    .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID || '68ee2dc2001f0f499c02');
 
 // Configuration Appwrite (setKey n'est pas nécessaire pour les API keys)
 // Les API keys sont utilisées directement dans les requêtes
@@ -12,7 +12,7 @@ export const account = new Account(client);
 export const databases = new Databases(client);
 export const storage = new Storage(client);
 
-export const DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID || '68e56de100267007af6a';
+export const DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID || '68ee527d002813e4e0ca';
 export const STORAGE_BUCKET_ID = import.meta.env.VITE_APPWRITE_STORAGE_BUCKET_ID || 'files';
 
 export { ID, Query };
@@ -20,36 +20,41 @@ export { ID, Query };
 // Collection IDs for Appwrite - SANS ACCENTS (Appwrite n'accepte pas les accents!)
 export const COLLECTION_IDS = {
   // Noms de collections valides pour Appwrite (a-z, A-Z, 0-9, underscore uniquement)
-  USERS: 'demo_users',
-  COURSES: 'demo_courses',
-  JOBS: 'demo_jobs',
-  PROJECTS: 'demo_projects',
-  TASKS: 'demo_tasks',
-  RISKS: 'demo_risks',
-  OBJECTIVES: 'demo_objectives',
-  KEY_RESULTS: 'demo_key_results',
-  CONTACTS: 'demo_contacts',
-  CRM_CLIENTS: 'demo_crm_clients',
-  DOCUMENTS: 'demo_documents',
-  TIME_LOGS: 'demo_time_logs',
-  LEAVE_REQUESTS: 'demo_leave_requests',
-  INVOICES: 'demo_invoices',
-  EXPENSES: 'demo_expenses',
-  RECURRING_INVOICES: 'demo_recurring_invoices',
-  RECURRING_EXPENSES: 'demo_recurring_expenses',
-  BUDGETS: 'demo_budgets',
-  BUDGET_LINES: 'demo_budget_lines',
-  BUDGET_ITEMS: 'demo_budget_items',
-  MEETINGS: 'demo_meetings',
-  NOTIFICATIONS: 'demo_notifications',
-  LESSONS: 'demo_lessons',
-  MODULES: 'demo_modules',
+  USERS: 'users',
+  COURSES: 'courses',
+  JOBS: 'jobs',
+  PROJECTS: 'projects',
+  TASKS: 'tasks',
+  RISKS: 'risks',
+  OBJECTIVES: 'objectives',
+  KEY_RESULTS: 'key_results',
+  CONTACTS: 'contacts',
+  CRM_CLIENTS: 'crm_clients',
+  DOCUMENTS: 'documents',
+  TIME_LOGS: 'time_logs',
+  LEAVE_REQUESTS: 'leave_requests',
+  INVOICES: 'invoices',
+  EXPENSES: 'expenses',
+  RECURRING_INVOICES: 'recurring_invoices',
+  RECURRING_EXPENSES: 'recurring_expenses',
+  BUDGETS: 'budgets',
+  BUDGET_LINES: 'budget_lines',
+  BUDGET_ITEMS: 'budget_items',
+  MEETINGS: 'meetings',
+  NOTIFICATIONS: 'notifications',
+  LESSONS: 'lessons',
+  MODULES: 'modules',
+  COURSE_ENROLLMENTS: 'course_enrollments',  // ✅ Ajouté selon Merise
 };
 
-// Export des services Finance, CRM et Projects
+// Export des services Finance, CRM, Projects, Course Enrollment, Time Log, User et OKR
 export * from './financeService';
 export * from './crmService';
 export * from './projectService';
+export * from './courseEnrollmentService';
+export * from './userService';
+export * from './timeLogService';
+export * from './okrService';
 
 // Check if Appwrite is configured
 const isAppwriteConfigured = () => {

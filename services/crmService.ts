@@ -1,534 +1,444 @@
-/**
- * SERVICE CRM - ERP SENEGEL
- * Gestion des clients, leads et contacts
- */
+import { databases, DATABASE_ID, ID, Query } from './appwriteService';
+import { Contact, Lead, Interaction } from '../types';
 
-import { databases, DATABASE_ID, COLLECTION_IDS } from './appwriteService';
-import { ID, Query } from 'appwrite';
+class CRMService {
+  private get contactsCollectionId() {
+    return 'contacts';
+  }
 
-// ============================================
-// CLIENT SERVICE (Clients CRM)
-// ============================================
+  private get crmClientsCollectionId() {
+    return 'crm_clients';
+  }
 
-export const clientService = {
-  /**
-   * Liste tous les clients
-   */
-  async list(filters?: { status?: string; assignedTo?: string; limit?: number }) {
-    const queries = [Query.orderDesc('$createdAt')];
-    
-    if (filters?.status) {
-      queries.push(Query.equal('status', filters.status));
-    }
-    
-    if (filters?.assignedTo) {
-      queries.push(Query.equal('assignedTo', filters.assignedTo));
-    }
-    
-    queries.push(Query.limit(filters?.limit || 100));
-    
+  // ===== CONTACTS =====
+
+  private mapContactFromAppwrite(doc: any): Contact {
+    return {
+      id: doc.$id,
+      firstName: doc.firstName,
+      lastName: doc.lastName,
+      email: doc.email,
+      phone: doc.phone,
+      company: doc.company,
+      position: doc.position,
+      status: doc.status || 'active',
+      source: doc.source || 'unknown',
+      tags: doc.tags || [],
+      notes: doc.notes || '',
+      lastContactDate: doc.lastContactDate,
+      createdAt: doc.$createdAt,
+      updatedAt: doc.$updatedAt,
+    };
+  }
+
+  private mapContactToAppwrite(contact: Partial<Contact>): any {
+    const data: any = {};
+    if (contact.firstName !== undefined) data.firstName = contact.firstName;
+    if (contact.lastName !== undefined) data.lastName = contact.lastName;
+    if (contact.email !== undefined) data.email = contact.email;
+    if (contact.phone !== undefined) data.phone = contact.phone;
+    if (contact.company !== undefined) data.company = contact.company;
+    if (contact.position !== undefined) data.position = contact.position;
+    if (contact.status !== undefined) data.status = contact.status;
+    if (contact.source !== undefined) data.source = contact.source;
+    if (contact.tags !== undefined) data.tags = contact.tags;
+    if (contact.notes !== undefined) data.notes = contact.notes;
+    if (contact.lastContactDate !== undefined) data.lastContactDate = contact.lastContactDate;
+    return data;
+  }
+
+  async createContact(contactData: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>): Promise<Contact | null> {
     try {
-      return await databases.listDocuments(
+      const appwriteData = this.mapContactToAppwrite(contactData);
+      const response = await databases.createDocument(
         DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS,
-        queries
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération des clients:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Récupère un client par ID
-   */
-  async get(clientId: string) {
-    try {
-      return await databases.getDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS,
-        clientId
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération du client:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Crée un nouveau client
-   */
-  async create(clientData: any, userId: string) {
-    try {
-      const client = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS,
+        this.contactsCollectionId,
         ID.unique(),
-        {
-          ...clientData,
-          createdBy: userId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
+        appwriteData
       );
-      
-      console.log('✅ Client créé:', client.$id);
-      return client;
+      console.log('✅ Contact créé dans Appwrite:', response.$id);
+      return this.mapContactFromAppwrite(response);
     } catch (error) {
-      console.error('❌ Erreur lors de la création du client:', error);
+      console.error('❌ Erreur création contact:', error);
       throw error;
     }
-  },
+  }
 
-  /**
-   * Met à jour un client
-   */
-  async update(clientId: string, data: any) {
+  async getContacts(): Promise<Contact[]> {
     try {
-      const client = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS,
-        clientId,
-        {
-          ...data,
-          updatedAt: new Date().toISOString(),
-        }
-      );
-      
-      console.log('✅ Client mis à jour:', clientId);
-      return client;
-    } catch (error) {
-      console.error('❌ Erreur lors de la mise à jour du client:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Supprime un client
-   */
-  async delete(clientId: string) {
-    try {
-      await databases.deleteDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS,
-        clientId
-      );
-      
-      console.log('✅ Client supprimé:', clientId);
-      return true;
-    } catch (error) {
-      console.error('❌ Erreur lors de la suppression du client:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Recherche des clients
-   */
-  async search(searchTerm: string) {
-    try {
-      return await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS,
-        [
-          Query.search('name', searchTerm),
-          Query.limit(50)
-        ]
-      );
-    } catch (error) {
-      console.error('Erreur lors de la recherche de clients:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Récupère les clients assignés à un utilisateur
-   */
-  async getByAssignee(userId: string) {
-    try {
-      return await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS,
-        [
-          Query.equal('assignedTo', userId),
-          Query.orderDesc('$createdAt'),
-          Query.limit(100)
-        ]
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération des clients assignés:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Calcule le revenu total des clients
-   */
-  async getTotalRevenue(status?: string) {
-    try {
-      const queries = status ? [Query.equal('status', status)] : [];
-      queries.push(Query.limit(1000));
-      
       const response = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS,
-        queries
+        this.contactsCollectionId
       );
-      
-      const total = response.documents.reduce((sum, doc) => {
-        return sum + (parseFloat(doc.revenue) || 0);
-      }, 0);
-      
-      return total;
+      console.log(`✅ ${response.documents.length} contacts récupérés`);
+      return response.documents.map(doc => this.mapContactFromAppwrite(doc));
     } catch (error) {
-      console.error('Erreur lors du calcul du revenu total:', error);
-      return 0;
+      console.error('❌ Erreur récupération contacts:', error);
+      return [];
     }
-  },
-};
+  }
 
-// ============================================
-// LEAD SERVICE (Leads/Prospects)
-// ============================================
-
-export const leadService = {
-  /**
-   * Liste tous les leads
-   */
-  async list(filters?: { status?: string; source?: string; limit?: number }) {
-    const queries = [Query.orderDesc('$createdAt')];
-    
-    if (filters?.status) {
-      queries.push(Query.equal('status', filters.status));
-    }
-    
-    if (filters?.source) {
-      queries.push(Query.equal('source', filters.source));
-    }
-    
-    queries.push(Query.limit(filters?.limit || 100));
-    
+  async getContactById(id: string): Promise<Contact | null> {
     try {
-      return await databases.listDocuments(
+      const response = await databases.getDocument(
         DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS, // Utilise la même collection pour le moment
-        queries
+        this.contactsCollectionId,
+        id
       );
+      console.log('✅ Contact récupéré:', id);
+      return this.mapContactFromAppwrite(response);
     } catch (error) {
-      console.error('Erreur lors de la récupération des leads:', error);
+      console.error('❌ Erreur récupération contact:', error);
+      return null;
+    }
+  }
+
+  async updateContact(id: string, contactData: Partial<Contact>): Promise<Contact | null> {
+    try {
+      const appwriteData = this.mapContactToAppwrite(contactData);
+      const response = await databases.updateDocument(
+        DATABASE_ID,
+        this.contactsCollectionId,
+        id,
+        appwriteData
+      );
+      console.log('✅ Contact mis à jour dans Appwrite:', id);
+      return this.mapContactFromAppwrite(response);
+    } catch (error) {
+      console.error('❌ Erreur mise à jour contact:', error);
       throw error;
     }
-  },
+  }
 
-  /**
-   * Récupère un lead par ID
-   */
-  async get(leadId: string) {
-    try {
-      return await databases.getDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS,
-        leadId
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération du lead:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Crée un nouveau lead
-   */
-  async create(leadData: any, userId: string) {
-    try {
-      const lead = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS,
-        ID.unique(),
-        {
-          ...leadData,
-          type: 'lead', // Distinguer lead vs client
-          score: leadData.score || 0,
-          createdBy: userId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-      );
-      
-      console.log('✅ Lead créé:', lead.$id);
-      return lead;
-    } catch (error) {
-      console.error('❌ Erreur lors de la création du lead:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Met à jour un lead
-   */
-  async update(leadId: string, data: any) {
-    try {
-      const lead = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS,
-        leadId,
-        {
-          ...data,
-          updatedAt: new Date().toISOString(),
-        }
-      );
-      
-      console.log('✅ Lead mis à jour:', leadId);
-      return lead;
-    } catch (error) {
-      console.error('❌ Erreur lors de la mise à jour du lead:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Supprime un lead
-   */
-  async delete(leadId: string) {
+  async deleteContact(id: string): Promise<boolean> {
     try {
       await databases.deleteDocument(
         DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS,
-        leadId
+        this.contactsCollectionId,
+        id
       );
-      
-      console.log('✅ Lead supprimé:', leadId);
+      console.log('✅ Contact supprimé de Appwrite:', id);
       return true;
     } catch (error) {
-      console.error('❌ Erreur lors de la suppression du lead:', error);
-      throw error;
+      console.error('❌ Erreur suppression contact:', error);
+      return false;
     }
-  },
+  }
 
-  /**
-   * Convertit un lead en client
-   */
-  async convertToClient(leadId: string) {
-    try {
-      const lead = await this.get(leadId);
-      
-      // Met à jour le type de "lead" à "client"
-      return await this.update(leadId, {
-        type: 'client',
-        status: 'Active',
-        convertedAt: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error('❌ Erreur lors de la conversion du lead:', error);
-      throw error;
-    }
-  },
+  // ===== LEADS =====
 
-  /**
-   * Met à jour le score d'un lead
-   */
-  async updateScore(leadId: string, score: number) {
-    try {
-      return await this.update(leadId, { score });
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour du score:', error);
-      throw error;
-    }
-  },
+  private mapLeadFromAppwrite(doc: any): Lead {
+    return {
+      id: doc.$id,
+      firstName: doc.firstName,
+      lastName: doc.lastName,
+      email: doc.email,
+      phone: doc.phone,
+      company: doc.company,
+      position: doc.position,
+      status: doc.status || 'new',
+      source: doc.source || 'unknown',
+      score: doc.score || 0,
+      notes: doc.notes || '',
+      lastContactDate: doc.lastContactDate,
+      createdAt: doc.$createdAt,
+      updatedAt: doc.$updatedAt,
+    };
+  }
 
-  /**
-   * Récupère les leads par statut (pipeline)
-   */
-  async getByStatus(status: string) {
+  private mapLeadToAppwrite(lead: Partial<Lead>): any {
+    const data: any = {};
+    if (lead.firstName !== undefined) data.firstName = lead.firstName;
+    if (lead.lastName !== undefined) data.lastName = lead.lastName;
+    if (lead.email !== undefined) data.email = lead.email;
+    if (lead.phone !== undefined) data.phone = lead.phone;
+    if (lead.company !== undefined) data.company = lead.company;
+    if (lead.position !== undefined) data.position = lead.position;
+    if (lead.status !== undefined) data.status = lead.status;
+    if (lead.source !== undefined) data.source = lead.source;
+    if (lead.score !== undefined) data.score = lead.score;
+    if (lead.notes !== undefined) data.notes = lead.notes;
+    if (lead.lastContactDate !== undefined) data.lastContactDate = lead.lastContactDate;
+    return data;
+  }
+
+  async createLead(leadData: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>): Promise<Lead | null> {
     try {
-      return await databases.listDocuments(
+      const appwriteData = this.mapLeadToAppwrite(leadData);
+      const response = await databases.createDocument(
         DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS,
-        [
-          Query.equal('type', 'lead'),
-          Query.equal('status', status),
-          Query.orderDesc('score'), // Trié par score décroissant
-          Query.limit(100)
-        ]
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération des leads par statut:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Récupère les leads à fort potentiel (score élevé)
-   */
-  async getHighPotential(minScore: number = 70) {
-    try {
-      return await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_IDS.CRM_CLIENTS,
-        [
-          Query.equal('type', 'lead'),
-          Query.greaterThanEqual('score', minScore),
-          Query.orderDesc('score'),
-          Query.limit(50)
-        ]
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération des leads à fort potentiel:', error);
-      throw error;
-    }
-  },
-};
-
-// ============================================
-// CONTACT SERVICE (Contacts CRM - Déjà existant, mais amélioré)
-// ============================================
-
-export const contactService = {
-  /**
-   * Liste tous les contacts
-   */
-  async list(filters?: { tags?: string[]; limit?: number }) {
-    const queries = [Query.orderDesc('$createdAt')];
-    
-    if (filters?.tags && filters.tags.length > 0) {
-      // Note: Appwrite ne supporte pas nativement le filtrage par tableau
-      // Il faudrait une approche différente pour les tags
-    }
-    
-    queries.push(Query.limit(filters?.limit || 100));
-    
-    try {
-      return await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_IDS.CONTACTS,
-        queries
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération des contacts:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Récupère un contact par ID
-   */
-  async get(contactId: string) {
-    try {
-      return await databases.getDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.CONTACTS,
-        contactId
-      );
-    } catch (error) {
-      console.error('Erreur lors de la récupération du contact:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Crée un nouveau contact
-   */
-  async create(contactData: any, userId: string) {
-    try {
-      const contact = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.CONTACTS,
+        this.crmClientsCollectionId,
         ID.unique(),
-        {
-          ...contactData,
-          createdBy: userId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
+        appwriteData
       );
+      console.log('✅ Lead créé dans Appwrite:', response.$id);
+      return this.mapLeadFromAppwrite(response);
+    } catch (error) {
+      console.error('❌ Erreur création lead:', error);
+      throw error;
+    }
+  }
+
+  async getLeads(): Promise<Lead[]> {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        this.crmClientsCollectionId
+      );
+      console.log(`✅ ${response.documents.length} leads récupérés`);
+      return response.documents.map(doc => this.mapLeadFromAppwrite(doc));
+    } catch (error) {
+      console.error('❌ Erreur récupération leads:', error);
+      return [];
+    }
+  }
+
+  async getLeadById(id: string): Promise<Lead | null> {
+    try {
+      const response = await databases.getDocument(
+        DATABASE_ID,
+        this.crmClientsCollectionId,
+        id
+      );
+      console.log('✅ Lead récupéré:', id);
+      return this.mapLeadFromAppwrite(response);
+    } catch (error) {
+      console.error('❌ Erreur récupération lead:', error);
+      return null;
+    }
+  }
+
+  async updateLead(id: string, leadData: Partial<Lead>): Promise<Lead | null> {
+    try {
+      const appwriteData = this.mapLeadToAppwrite(leadData);
+      const response = await databases.updateDocument(
+        DATABASE_ID,
+        this.crmClientsCollectionId,
+        id,
+        appwriteData
+      );
+      console.log('✅ Lead mis à jour dans Appwrite:', id);
+      return this.mapLeadFromAppwrite(response);
+    } catch (error) {
+      console.error('❌ Erreur mise à jour lead:', error);
+      throw error;
+    }
+  }
+
+  async deleteLead(id: string): Promise<boolean> {
+    try {
+      await databases.deleteDocument(
+        DATABASE_ID,
+        this.crmClientsCollectionId,
+        id
+      );
+      console.log('✅ Lead supprimé de Appwrite:', id);
+      return true;
+    } catch (error) {
+      console.error('❌ Erreur suppression lead:', error);
+      return false;
+    }
+  }
+
+  // ===== LEAD CONVERSION =====
+
+  async convertLeadToContact(leadId: string): Promise<Contact | null> {
+    try {
+      const lead = await this.getLeadById(leadId);
+      if (!lead) {
+        throw new Error('Lead non trouvé');
+      }
+
+      const contactData: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'> = {
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        email: lead.email,
+        phone: lead.phone,
+        company: lead.company,
+        position: lead.position,
+        status: 'active',
+        source: lead.source,
+        tags: ['converted'],
+        notes: `Converti depuis lead: ${lead.notes}`,
+        lastContactDate: new Date().toISOString().split('T')[0],
+      };
+
+      const contact = await this.createContact(contactData);
       
-      console.log('✅ Contact créé:', contact.$id);
+      if (contact) {
+        // Marquer le lead comme converti
+        await this.updateLead(leadId, { status: 'converted' });
+        console.log('✅ Lead converti en contact:', leadId);
+      }
+
       return contact;
     } catch (error) {
-      console.error('❌ Erreur lors de la création du contact:', error);
+      console.error('❌ Erreur conversion lead:', error);
       throw error;
     }
-  },
+  }
 
-  /**
-   * Met à jour un contact
-   */
-  async update(contactId: string, data: any) {
+  // ===== INTERACTIONS =====
+
+  async logInteraction(contactId: string, interaction: Omit<Interaction, 'id' | 'contactId' | 'createdAt'>): Promise<Interaction | null> {
     try {
-      const contact = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTION_IDS.CONTACTS,
+      const interactionData = {
+        ...interaction,
         contactId,
+        createdAt: new Date().toISOString(),
+      };
+
+      const response = await databases.createDocument(
+        DATABASE_ID,
+        this.contactsCollectionId, // Utiliser la même collection pour les interactions
+        ID.unique(),
         {
-          ...data,
-          updatedAt: new Date().toISOString(),
+          type: 'interaction',
+          contactId,
+          ...interactionData,
         }
       );
-      
-      console.log('✅ Contact mis à jour:', contactId);
-      return contact;
+
+      console.log('✅ Interaction enregistrée:', response.$id);
+      return {
+        id: response.$id,
+        contactId,
+        type: interaction.type,
+        description: interaction.description,
+        date: interaction.date,
+        outcome: interaction.outcome,
+        createdAt: interactionData.createdAt,
+      };
     } catch (error) {
-      console.error('❌ Erreur lors de la mise à jour du contact:', error);
+      console.error('❌ Erreur enregistrement interaction:', error);
       throw error;
     }
-  },
+  }
 
-  /**
-   * Supprime un contact
-   */
-  async delete(contactId: string) {
+  async getContactHistory(contactId: string): Promise<Interaction[]> {
     try {
-      await databases.deleteDocument(
+      const response = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTION_IDS.CONTACTS,
-        contactId
+        this.contactsCollectionId,
+        [Query.equal('contactId', contactId), Query.equal('type', 'interaction')]
       );
       
-      console.log('✅ Contact supprimé:', contactId);
-      return true;
+      console.log(`✅ ${response.documents.length} interactions récupérées pour contact ${contactId}`);
+      return response.documents.map(doc => ({
+        id: doc.$id,
+        contactId: doc.contactId,
+        type: doc.type,
+        description: doc.description,
+        date: doc.date,
+        outcome: doc.outcome,
+        createdAt: doc.$createdAt,
+      }));
     } catch (error) {
-      console.error('❌ Erreur lors de la suppression du contact:', error);
-      throw error;
+      console.error('❌ Erreur récupération historique contact:', error);
+      return [];
     }
-  },
+  }
 
-  /**
-   * Recherche des contacts
-   */
-  async search(searchTerm: string) {
+  // ===== SEARCH AND FILTER =====
+
+  async searchContacts(query: string): Promise<Contact[]> {
     try {
-      return await databases.listDocuments(
+      const response = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTION_IDS.CONTACTS,
+        this.contactsCollectionId,
         [
-          Query.search('name', searchTerm),
-          Query.limit(50)
+          Query.or([
+            Query.contains('firstName', query),
+            Query.contains('lastName', query),
+            Query.contains('email', query),
+            Query.contains('company', query),
+          ])
         ]
       );
+      
+      console.log(`✅ ${response.documents.length} contacts trouvés pour "${query}"`);
+      return response.documents.map(doc => this.mapContactFromAppwrite(doc));
     } catch (error) {
-      console.error('Erreur lors de la recherche de contacts:', error);
-      throw error;
+      console.error('❌ Erreur recherche contacts:', error);
+      return [];
     }
-  },
+  }
 
-  /**
-   * Récupère les contacts par entreprise
-   */
-  async getByCompany(companyName: string) {
+  async getContactsByStatus(status: string): Promise<Contact[]> {
     try {
-      return await databases.listDocuments(
+      const response = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTION_IDS.CONTACTS,
-        [
-          Query.equal('company', companyName),
-          Query.orderDesc('$createdAt'),
-          Query.limit(100)
-        ]
+        this.contactsCollectionId,
+        [Query.equal('status', status)]
       );
+      
+      console.log(`✅ ${response.documents.length} contacts avec statut "${status}"`);
+      return response.documents.map(doc => this.mapContactFromAppwrite(doc));
     } catch (error) {
-      console.error('Erreur lors de la récupération des contacts par entreprise:', error);
+      console.error('❌ Erreur récupération contacts par statut:', error);
+      return [];
+    }
+  }
+
+  async getLeadsByStatus(status: string): Promise<Lead[]> {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        this.crmClientsCollectionId,
+        [Query.equal('status', status)]
+      );
+      
+      console.log(`✅ ${response.documents.length} leads avec statut "${status}"`);
+      return response.documents.map(doc => this.mapLeadFromAppwrite(doc));
+    } catch (error) {
+      console.error('❌ Erreur récupération leads par statut:', error);
+      return [];
+    }
+  }
+
+  // ===== ANALYTICS =====
+
+  async getCRMAnalytics(): Promise<any> {
+    try {
+      const [contacts, leads] = await Promise.all([
+        this.getContacts(),
+        this.getLeads()
+      ]);
+
+      const contactsByStatus = contacts.reduce((acc, contact) => {
+        acc[contact.status] = (acc[contact.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const leadsByStatus = leads.reduce((acc, lead) => {
+        acc[lead.status] = (acc[lead.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const contactsBySource = contacts.reduce((acc, contact) => {
+        acc[contact.source] = (acc[contact.source] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const leadsBySource = leads.reduce((acc, lead) => {
+        acc[lead.source] = (acc[lead.source] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      return {
+        totalContacts: contacts.length,
+        totalLeads: leads.length,
+        contactsByStatus,
+        leadsByStatus,
+        contactsBySource,
+        leadsBySource,
+        conversionRate: leads.filter(lead => lead.status === 'converted').length / leads.length * 100,
+      };
+    } catch (error) {
+      console.error('❌ Erreur calcul analytics CRM:', error);
       throw error;
     }
-  },
-};
+  }
+}
 
+export const crmService = new CRMService();

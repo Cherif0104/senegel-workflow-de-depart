@@ -23,12 +23,19 @@ import AICoach from './components/AICoach';
 import Settings from './components/Settings';
 import Projects from './components/Projects';
 import ProjectsModern from './components/ProjectsModern';
+import ProjectsAppwrite from './components/ProjectsAppwrite';
+import ProjectsUltraModern from './components/ProjectsUltraModern';
+import ProjectsTest from './components/ProjectsTest';
+import TimeTrackingAppwrite from './components/TimeTrackingAppwrite';
+import TimeTrackingModern from './components/TimeTrackingModern';
+import CRMAppwrite from './components/CRMAppwrite';
 import GenAILab from './components/GenAILab';
 import CourseDetail from './components/CourseDetail';
 import CourseManagement from './components/CourseManagement';
 import Analytics from './components/Analytics';
 import TalentAnalytics from './components/TalentAnalytics';
 import Goals from './components/Goals';
+import GoalsAppwrite from './components/GoalsAppwrite';
 import CRM from './components/CRM';
 import KnowledgeBase from './components/KnowledgeBase';
 import CreateJob from './components/CreateJob';
@@ -36,6 +43,7 @@ import UserManagement from './components/UserManagement';
 import AIAgent from './components/AIAgent';
 import TimeTracking from './components/TimeTracking';
 import LeaveManagement from './components/LeaveManagement';
+import LeaveManagementModern from './components/LeaveManagementModern';
 import Finance from './components/Finance';
 
 
@@ -565,35 +573,18 @@ const App: React.FC = () => {
       case 'dashboard':
         return <Dashboard setView={handleSetView} projects={projects} courses={courses} jobs={jobs} timeLogs={timeLogs} leaveRequests={leaveRequests} invoices={invoices} expenses={expenses} />;
       case 'time_tracking':
-        return <TimeTracking 
-                    timeLogs={timeLogs} 
-                    onAddTimeLog={handleAddTimeLog} 
+        return <TimeTrackingModern 
                     projects={projects} 
                     courses={courses}
-                    meetings={meetings}
-                    users={users}
-                    onAddMeeting={handleAddMeeting}
-                    onUpdateMeeting={handleUpdateMeeting}
-                    onDeleteMeeting={handleDeleteMeeting}
                 />;
       case 'projects':
-        return <ProjectsModern 
-                    projects={projects} 
-                    users={users}
+        return <ProjectsUltraModern 
                     timeLogs={timeLogs}
-                    onUpdateProject={handleUpdateProject} 
-                    onAddProject={handleAddProject}
-                    onDeleteProject={handleDeleteProject}
                     onAddTimeLog={handleAddTimeLog}
                 />;
       case 'goals_okrs':
-        return <Goals 
-                    projects={projects} 
-                    objectives={objectives} 
-                    setObjectives={handleSetObjectives} 
-                    onAddObjective={handleAddObjective}
-                    onUpdateObjective={handleUpdateObjective}
-                    onDeleteObjective={handleDeleteObjective}
+        return <GoalsAppwrite 
+                    projects={projects}
                 />;
       case 'courses':
         return <Courses courses={courses} onSelectCourse={handleSelectCourse} />;
@@ -614,20 +605,11 @@ const App: React.FC = () => {
       case 'user_management':
         return <UserManagement users={users} onUpdateUser={handleUpdateUser} />;
       case 'crm_sales':
-        return <CRM 
-                    contacts={contacts} 
-                    onAddContact={handleAddContact}
-                    onUpdateContact={handleUpdateContact}
-                    onDeleteContact={handleDeleteContact}
-                />;
+        return <CRMAppwrite />;
       case 'knowledge_base':
         return <KnowledgeBase documents={documents} onAddDocument={handleAddDocument} />;
       case 'leave_management':
-        return <LeaveManagement 
-                    leaveRequests={leaveRequests}
-                    onAddLeaveRequest={handleAddLeaveRequest}
-                    onUpdateLeaveRequestStatus={handleUpdateLeaveRequestStatus}
-                />;
+        return <LeaveManagementModern />;
       case 'finance':
         return <Finance 
                     invoices={invoices}

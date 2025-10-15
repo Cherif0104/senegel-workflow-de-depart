@@ -1,14 +1,17 @@
 
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
-import { User } from '../types';
+import { User, Role } from '../types';
+import { authService, AuthUser } from '../services/authService';
 
 interface AuthContextType {
   user: User | null;
-  login: (user: User) => void;
-  logout: () => void;
+  login: (credentials: { email: string; password: string; role?: Role }) => Promise<boolean>;
+  register: (data: { firstName: string; lastName: string; email: string; password: string; role: string }) => Promise<boolean>;
+  logout: () => Promise<void>;
   isLoading: boolean;
   lastActivity: number;
   updateActivity: () => void;
+  error: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,6 +26,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastActivity, setLastActivity] = useState<number>(Date.now());
+  const [error, setError] = useState<string | null>(null);
 
   // Vérifier si la session est expirée
   const isSessionExpired = useCallback(() => {
@@ -53,33 +57,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Charger la session au démarrage
   useEffect(() => {
-    const savedUser = localStorage.getItem(SESSION_KEY);
-    const savedActivity = localStorage.getItem(ACTIVITY_KEY);
-    
-    if (savedUser && savedActivity) {
+    const loadUser = async () => {
       try {
-        const userData = JSON.parse(savedUser);
-        const lastActivityTime = parseInt(savedActivity);
-        
-        // Vérifier si la session est encore valide
-        if ((Date.now() - lastActivityTime) <= SESSION_TIMEOUT) {
+        const authUser = await authService.getCurrentUser();
+        if (authUser) {
+          const userData = authService.convertToUser(authUser);
           setUser(userData);
-          setLastActivity(lastActivityTime);
+          setLastActivity(Date.now());
           console.log('Session restaurée avec succès');
-        } else {
-          console.log('Session expirée - Nettoyage');
-          localStorage.removeItem(SESSION_KEY);
-          localStorage.removeItem(ACTIVITY_KEY);
-          localStorage.removeItem(CURRENT_PAGE_KEY);
         }
       } catch (error) {
-        console.error('Erreur parsing user session:', error);
-        localStorage.removeItem(SESSION_KEY);
-        localStorage.removeItem(ACTIVITY_KEY);
-        localStorage.removeItem(CURRENT_PAGE_KEY);
+        console.error('Erreur chargement utilisateur:', error);
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    };
+
+    loadUser();
   }, []);
 
   // Surveiller l'activité utilisateur
@@ -108,31 +102,146 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, [user, updateActivity, checkSessionExpiry]);
 
-  const login = (userData: User) => {
-    const now = Date.now();
-    setUser(userData);
-    setLastActivity(now);
-    
-    localStorage.setItem(SESSION_KEY, JSON.stringify(userData));
-    localStorage.setItem(ACTIVITY_KEY, now.toString());
-    localStorage.setItem('ecosystia_is_new_login', 'true'); // Marquer comme nouvelle connexion
-    
-    console.log('Connexion réussie - Session créée');
+  const login = async (credentials: { email: string; password: string; role?: Role }): Promise<boolean> => {
+    try {
+      setError(null);
+      setIsLoading(true);
+      
+      // Mode démo : bypass de l'authentification Appwrite
+      if (credentials.email === 'demo@ecosystia.sn' || credentials.password === 'demo') {
+        const role = credentials.role || 'manager';
+        const demoUser: User = {
+          id: `demo-user-${role}`,
+          firstName: 'Demo',
+          lastName: 'Utilisateur',
+          email: 'demo@ecosystia.sn',
+          avatar: `data:image/svg+xml;base64,${btoa(`<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#4F46E5"/><text x="50" y="60" font-family="Arial" font-size="40" font-weight="bold" text-anchor="middle" fill="white">${role.charAt(0).toUpperCase()}</text></svg>`)}`,
+          role: role,
+          skills: getRoleSkills(role),
+          phone: '+221 77 000 00 00'
+        };
+        
+        const now = Date.now();
+        setUser(demoUser);
+        setLastActivity(now);
+        
+        localStorage.setItem(SESSION_KEY, JSON.stringify(demoUser));
+        localStorage.setItem(ACTIVITY_KEY, now.toString());
+        localStorage.setItem('ecosystia_is_new_login', 'true');
+        
+        console.log(`✅ Mode démo activé - Rôle: ${role}`);
+        return true;
+      }
+      
+      // Mode production : authentification Appwrite
+      const authUser = await authService.login(credentials);
+      if (authUser) {
+        const userData = authService.convertToUser(authUser);
+        const now = Date.now();
+        
+        setUser(userData);
+        setLastActivity(now);
+        
+        localStorage.setItem(SESSION_KEY, JSON.stringify(userData));
+        localStorage.setItem(ACTIVITY_KEY, now.toString());
+        localStorage.setItem('ecosystia_is_new_login', 'true');
+        
+        console.log('Connexion réussie - Session créée');
+        return true;
+      }
+      return false;
+    } catch (error: any) {
+      setError(error.message);
+      console.error('Erreur de connexion:', error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    setLastActivity(Date.now());
+  // Fonction pour obtenir les compétences selon le rôle
+  const getRoleSkills = (role: Role): string[] => {
+    const roleSkills: Record<Role, string[]> = {
+      'super_administrator': ['Administration', 'Sécurité', 'Gestion', 'Développement'],
+      'administrator': ['Administration', 'Gestion', 'Sécurité'],
+      'manager': ['Gestion', 'Leadership', 'Planification'],
+      'team_lead': ['Leadership', 'Gestion d\'équipe', 'Planification'],
+      'developer': ['Développement', 'Programmation', 'Architecture'],
+      'designer': ['Design', 'UI/UX', 'Créativité'],
+      'analyst': ['Analyse', 'Données', 'Reporting'],
+      'tester': ['Test', 'Qualité', 'Validation'],
+      'consultant': ['Conseil', 'Analyse', 'Stratégie'],
+      'trainer': ['Formation', 'Pédagogie', 'Communication'],
+      'support': ['Support', 'Assistance', 'Communication'],
+      'sales': ['Vente', 'Commercial', 'Négociation'],
+      'marketing': ['Marketing', 'Communication', 'Stratégie'],
+      'hr': ['RH', 'Gestion', 'Recrutement'],
+      'finance': ['Finance', 'Comptabilité', 'Analyse'],
+      'legal': ['Juridique', 'Conformité', 'Réglementation'],
+      'operations': ['Opérations', 'Gestion', 'Optimisation'],
+      'research': ['Recherche', 'Innovation', 'Analyse'],
+      'content': ['Contenu', 'Rédaction', 'Communication']
+    };
     
-    localStorage.removeItem(SESSION_KEY);
-    localStorage.removeItem(ACTIVITY_KEY);
-    localStorage.removeItem(CURRENT_PAGE_KEY);
-    
-    console.log('Déconnexion - Session nettoyée');
+    return roleSkills[role] || ['Général'];
+  };
+
+  const register = async (data: { firstName: string; lastName: string; email: string; password: string; role: string }): Promise<boolean> => {
+    try {
+      setError(null);
+      setIsLoading(true);
+      
+      const authUser = await authService.register({
+        ...data,
+        role: data.role as any
+      });
+      
+      if (authUser) {
+        const userData = authService.convertToUser(authUser);
+        const now = Date.now();
+        
+        setUser(userData);
+        setLastActivity(now);
+        
+        localStorage.setItem(SESSION_KEY, JSON.stringify(userData));
+        localStorage.setItem(ACTIVITY_KEY, now.toString());
+        localStorage.setItem('ecosystia_is_new_login', 'true');
+        
+        console.log('Inscription réussie - Session créée');
+        return true;
+      }
+      return false;
+    } catch (error: any) {
+      setError(error.message);
+      console.error('Erreur d\'inscription:', error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async (): Promise<void> => {
+    try {
+      await authService.logout();
+      
+      setUser(null);
+      setLastActivity(Date.now());
+      
+      localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(ACTIVITY_KEY);
+      localStorage.removeItem(CURRENT_PAGE_KEY);
+      
+      console.log('Déconnexion - Session nettoyée');
+    } catch (error: any) {
+      console.error('Erreur de déconnexion:', error);
+      // Nettoyer quand même localement
+      setUser(null);
+      localStorage.clear();
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading, lastActivity, updateActivity }}>
+    <AuthContext.Provider value={{ user, login, register, logout, isLoading, lastActivity, updateActivity, error }}>
       {children}
     </AuthContext.Provider>
   );

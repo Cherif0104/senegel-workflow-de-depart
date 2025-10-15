@@ -8,17 +8,17 @@
 import { Client, Databases, ID, Permission, Role } from 'appwrite';
 
 // Configuration depuis .env
-const APPWRITE_ENDPOINT = 'https://sfo.cloud.appwrite.io/v1';
-const APPWRITE_PROJECT_ID = '68e54e9c002cb568cfec';
-const APPWRITE_DATABASE_ID = '68e56de100267007af6a';
-const APPWRITE_API_KEY = 'standard_aa282abbf94b3f6d2e95d8333422ee03b00f9c6bb1ad6e50ac9173660b6bcad4be93a1dca6871bab81b04621fed21342d89a4a3ca94bee46f38aebd21b362436ab41953054935b626dc4f4e01862d74fc8fbc28864938f0ab6dd815f76aaade45eabe04906e3db1a6bbfca09e923b89fc2afd6393695cf09cc53fa405d66c72c';
+const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1';
+const APPWRITE_PROJECT_ID = '68ee2dc2001f0f499c02';
+const APPWRITE_DATABASE_ID = '68ee527d002813e4e0ca';
+const APPWRITE_API_KEY = 'standard_fb504064b1c31c135a7a0cf25d87a6e60f5f075bf7f272b246bf57e09df00c3e4244ca6fd1a609a8a5d991427616aace7e732b4937a243fd501b97d826d59497b397efcbf11afe781a7b3b35f0aca2ad0f774831209617480df32a38ab24f0d76b11d72cb984680109fffc729b7fa1ce7cac199e6159707d56bd3738511701e3';
 
+// Configuration du client Appwrite pour les scripts serveur
 const client = new Client()
     .setEndpoint(APPWRITE_ENDPOINT)
     .setProject(APPWRITE_PROJECT_ID);
 
-// Pour les scripts serveur, on n'utilise pas setKey car c'est un SDK client
-// À la place, on va créer les collections via l'interface Appwrite ou utiliser le SDK serveur
+// Pour les scripts serveur, on utilise l'API Key dans les headers des requêtes
 const databases = new Databases(client);
 const databaseId = APPWRITE_DATABASE_ID;
 
@@ -202,6 +202,114 @@ const collections: CollectionSchema[] = [
       { key: 'mitigationStrategy', type: 'string', size: 1000 },
     ]
   },
+  {
+    id: 'objectives',
+    name: 'Objectives',
+    attributes: [
+      { key: 'projectId', type: 'string', size: 50, required: true },
+      { key: 'title', type: 'string', size: 255, required: true },
+      { key: 'description', type: 'string', size: 1000 },
+      { key: 'targetDate', type: 'string', size: 50 },
+      { key: 'status', type: 'string', size: 50 },
+      { key: 'progress', type: 'integer' },
+    ]
+  },
+  {
+    id: 'meetings',
+    name: 'Meetings',
+    attributes: [
+      { key: 'title', type: 'string', size: 255, required: true },
+      { key: 'description', type: 'string', size: 1000 },
+      { key: 'date', type: 'string', size: 50, required: true },
+      { key: 'duration', type: 'integer' },
+      { key: 'participants', type: 'string', size: 50, array: true },
+      { key: 'projectId', type: 'string', size: 50 },
+    ]
+  },
+  {
+    id: 'notifications',
+    name: 'Notifications',
+    attributes: [
+      { key: 'userId', type: 'string', size: 50, required: true },
+      { key: 'title', type: 'string', size: 255, required: true },
+      { key: 'message', type: 'string', size: 1000, required: true },
+      { key: 'type', type: 'string', size: 50 },
+      { key: 'read', type: 'boolean' },
+      { key: 'createdAt', type: 'string', size: 50 },
+    ]
+  },
+  {
+    id: 'lessons',
+    name: 'Lessons',
+    attributes: [
+      { key: 'courseId', type: 'string', size: 50, required: true },
+      { key: 'title', type: 'string', size: 255, required: true },
+      { key: 'content', type: 'string', size: 10000 },
+      { key: 'order', type: 'integer' },
+      { key: 'duration', type: 'integer' },
+      { key: 'videoUrl', type: 'url', size: 500 },
+    ]
+  },
+  {
+    id: 'modules',
+    name: 'Modules',
+    attributes: [
+      { key: 'courseId', type: 'string', size: 50, required: true },
+      { key: 'title', type: 'string', size: 255, required: true },
+      { key: 'description', type: 'string', size: 1000 },
+      { key: 'order', type: 'integer' },
+      { key: 'duration', type: 'integer' },
+    ]
+  },
+  {
+    id: 'course_enrollments',
+    name: 'Course Enrollments',
+    attributes: [
+      { key: 'userId', type: 'string', size: 50, required: true },
+      { key: 'courseId', type: 'string', size: 50, required: true },
+      { key: 'enrolledDate', type: 'string', size: 50, required: true },
+      { key: 'progress', type: 'integer' },
+      { key: 'completedLessons', type: 'string', size: 50, array: true },
+      { key: 'status', type: 'string', size: 50 },
+      { key: 'completionDate', type: 'string', size: 50 },
+    ]
+  },
+  {
+    id: 'budget_items',
+    name: 'Budget Items',
+    attributes: [
+      { key: 'projectId', type: 'string', size: 50, required: true },
+      { key: 'category', type: 'string', size: 100, required: true },
+      { key: 'description', type: 'string', size: 500 },
+      { key: 'budgetedAmount', type: 'float', required: true },
+      { key: 'actualAmount', type: 'float' },
+      { key: 'status', type: 'string', size: 50 },
+    ]
+  },
+  {
+    id: 'recurring_sources',
+    name: 'Recurring Sources',
+    attributes: [
+      { key: 'type', type: 'string', size: 50, required: true },
+      { key: 'name', type: 'string', size: 255, required: true },
+      { key: 'amount', type: 'float', required: true },
+      { key: 'frequency', type: 'string', size: 50, required: true },
+      { key: 'nextDate', type: 'string', size: 50 },
+      { key: 'active', type: 'boolean' },
+    ]
+  },
+  {
+    id: 'goals',
+    name: 'Goals',
+    attributes: [
+      { key: 'userId', type: 'string', size: 50, required: true },
+      { key: 'title', type: 'string', size: 255, required: true },
+      { key: 'description', type: 'string', size: 1000 },
+      { key: 'targetDate', type: 'string', size: 50 },
+      { key: 'status', type: 'string', size: 50 },
+      { key: 'progress', type: 'integer' },
+    ]
+  },
 ];
 
 async function createAttribute(
@@ -241,6 +349,15 @@ async function createAttribute(
           attr.required || false,
           undefined,
           undefined,
+          attr.default
+        );
+        break;
+      case 'boolean':
+        await databases.createBooleanAttribute(
+          databaseId,
+          collectionId,
+          attr.key,
+          attr.required || false,
           attr.default
         );
         break;
@@ -286,11 +403,11 @@ async function createAllCollections(): Promise<void> {
         collection.id,
         collection.name,
         [
-          { permission: 'read', target: 'role:all' },
-          { permission: 'create', target: 'role:member' },
-          { permission: 'update', target: 'role:member' },
-          { permission: 'delete', target: 'role:admin' }
-        ] as any
+          Permission.read(Role.any()),
+          Permission.create(Role.users()),
+          Permission.update(Role.users()),
+          Permission.delete(Role.users())
+        ]
       );
       console.log(`✅ Collection créée: ${collection.name}\n`);
 
@@ -328,7 +445,7 @@ async function createAllCollections(): Promise<void> {
   console.log('\n📋 RÉSUMÉ:');
   console.log(`  • ${collections.length} collections configurées`);
   console.log(`  • Base de données: ${databaseId}`);
-  console.log(`  • Project: 68e54e9c002cb568cfec\n`);
+  console.log(`  • Project: ${APPWRITE_PROJECT_ID}\n`);
 }
 
 // Exécuter le script

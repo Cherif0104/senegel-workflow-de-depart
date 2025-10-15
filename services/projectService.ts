@@ -7,7 +7,9 @@ import { databases, DATABASE_ID, COLLECTION_IDS, ID, Query } from './appwriteSer
 import { Project, Task, Risk, User } from '../types';
 
 class ProjectService {
-  private collectionId = COLLECTION_IDS.PROJECTS;
+  private get collectionId() {
+    return 'projects';
+  }
 
   /**
    * Convertir un document Appwrite en Project
@@ -57,6 +59,25 @@ class ProjectService {
    */
   async create(projectData: Omit<Project, 'id'>, userId: string): Promise<Project | null> {
     try {
+      // Mode démo : simuler la création avec persistance
+      if (this.isDemoMode()) {
+        const demoProject: Project = {
+          ...projectData,
+          id: `demo-project-${Date.now()}`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        
+        // Charger les projets existants et ajouter le nouveau
+        const existingProjects = this.loadDemoProjects();
+        const updatedProjects = [...existingProjects, demoProject];
+        this.saveDemoProjects(updatedProjects);
+        
+        console.log('✅ Projet créé en mode démo et sauvegardé:', demoProject.id);
+        return demoProject;
+      }
+
+      // Mode production : création dans Appwrite
       const appwriteData = this.mapToAppwrite(projectData);
       appwriteData.userId = userId; // Pour filtrage par utilisateur
       
@@ -71,8 +92,53 @@ class ProjectService {
       return this.mapFromAppwrite(response);
     } catch (error) {
       console.error('❌ Erreur création projet:', error);
+      
+      // Mode démo : fallback vers simulation
+      if (this.isDemoMode()) {
+        const demoProject: Project = {
+          ...projectData,
+          id: `demo-project-${Date.now()}`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        
+        console.log('✅ Projet créé en mode démo (fallback):', demoProject.id);
+        return demoProject;
+      }
+      
       throw error;
     }
+  }
+
+  /**
+   * Vérifier si on est en mode démo
+   */
+  private isDemoMode(): boolean {
+    // Vérifier si l'utilisateur actuel est un utilisateur démo
+    const user = JSON.parse(localStorage.getItem('ecosystia_user') || '{}');
+    return user.id && user.id.startsWith('demo-user-');
+  }
+
+  /**
+   * Sauvegarder les projets démo dans localStorage
+   */
+  private saveDemoProjects(projects: Project[]): void {
+    localStorage.setItem('ecosystia_demo_projects', JSON.stringify(projects));
+  }
+
+  /**
+   * Charger les projets démo depuis localStorage
+   */
+  private loadDemoProjects(): Project[] {
+    const saved = localStorage.getItem('ecosystia_demo_projects');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (error) {
+        console.error('❌ Erreur chargement projets démo:', error);
+      }
+    }
+    return this.getDemoProjects();
   }
 
   /**
@@ -99,6 +165,14 @@ class ProjectService {
    */
   async getAll(): Promise<Project[]> {
     try {
+      // Mode démo : retourner des projets persistants
+      if (this.isDemoMode()) {
+        const projects = this.loadDemoProjects();
+        console.log(`🔄 Mode démo - ${projects.length} projets chargés depuis localStorage`);
+        return projects;
+      }
+
+      // Mode production : récupération depuis Appwrite
       const response = await databases.listDocuments(
         DATABASE_ID,
         this.collectionId
@@ -108,8 +182,172 @@ class ProjectService {
       return response.documents.map(doc => this.mapFromAppwrite(doc));
     } catch (error) {
       console.error('❌ Erreur récupération tous les projets:', error);
+      
+      // Mode démo : fallback vers projets persistants
+      if (this.isDemoMode()) {
+        const projects = this.loadDemoProjects();
+        console.log(`🔄 Mode démo - Fallback vers ${projects.length} projets persistants`);
+        return projects;
+      }
+      
       return [];
     }
+  }
+
+  /**
+   * Projets de démonstration
+   */
+  private getDemoProjects(): Project[] {
+    return [
+      {
+        id: 'demo-project-1',
+        title: 'Site Web Ecosystia',
+        description: 'Développement du site web principal de la plateforme Ecosystia avec interface moderne et responsive.',
+        status: 'In Progress',
+        priority: 'High',
+        dueDate: '2024-12-31',
+        budget: 2500000,
+        client: 'Ecosystia',
+        tags: ['Web', 'React', 'TypeScript'],
+        team: [
+          {
+            id: '1',
+            firstName: 'Demo',
+            lastName: 'Utilisateur',
+            email: 'demo@ecosystia.sn',
+            avatar: `data:image/svg+xml;base64,${btoa(`<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#4F46E5"/><text x="50" y="60" font-family="Arial" font-size="40" font-weight="bold" text-anchor="middle" fill="white">DU</text></svg>`)}`,
+            role: 'manager',
+            skills: ['Gestion', 'Développement'],
+            phone: '+221 77 000 00 00'
+          }
+        ],
+        tasks: [
+          {
+            id: 'task-1',
+            text: 'Créer la maquette UI/UX',
+            status: 'Done',
+            priority: 'High',
+            assignee: {
+              id: '1',
+              firstName: 'Demo',
+              lastName: 'Utilisateur',
+              email: 'demo@ecosystia.sn',
+              avatar: `data:image/svg+xml;base64,${btoa(`<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#4F46E5"/><text x="50" y="60" font-family="Arial" font-size="40" font-weight="bold" text-anchor="middle" fill="white">DU</text></svg>`)}`,
+              role: 'manager',
+              skills: ['Gestion', 'Développement'],
+              phone: '+221 77 000 00 00'
+            },
+            dueDate: '2024-11-15',
+            estimatedTime: 8,
+            loggedTime: 8
+          },
+          {
+            id: 'task-2',
+            text: 'Développer les composants React',
+            status: 'In Progress',
+            priority: 'High',
+            assignee: {
+              id: '1',
+              firstName: 'Demo',
+              lastName: 'Utilisateur',
+              email: 'demo@ecosystia.sn',
+              avatar: `data:image/svg+xml;base64,${btoa(`<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#4F46E5"/><text x="50" y="60" font-family="Arial" font-size="40" font-weight="bold" text-anchor="middle" fill="white">DU</text></svg>`)}`,
+              role: 'manager',
+              skills: ['Gestion', 'Développement'],
+              phone: '+221 77 000 00 00'
+            },
+            dueDate: '2024-12-01',
+            estimatedTime: 16,
+            loggedTime: 4
+          }
+        ],
+        risks: [
+          {
+            id: 'risk-1',
+            description: 'Retard possible sur la livraison',
+            likelihood: 'Medium',
+            impact: 'High',
+            mitigationStrategy: 'Ajouter un développeur supplémentaire'
+          }
+        ],
+        createdAt: '2024-11-01T00:00:00.000Z',
+        updatedAt: '2024-11-14T00:00:00.000Z'
+      },
+      {
+        id: 'demo-project-2',
+        title: 'Application Mobile',
+        description: 'Développement d\'une application mobile pour iOS et Android avec React Native.',
+        status: 'Not Started',
+        priority: 'Medium',
+        dueDate: '2025-03-31',
+        budget: 1800000,
+        client: 'Ecosystia',
+        tags: ['Mobile', 'React Native', 'iOS', 'Android'],
+        team: [
+          {
+            id: '1',
+            firstName: 'Demo',
+            lastName: 'Utilisateur',
+            email: 'demo@ecosystia.sn',
+            avatar: `data:image/svg+xml;base64,${btoa(`<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#4F46E5"/><text x="50" y="60" font-family="Arial" font-size="40" font-weight="bold" text-anchor="middle" fill="white">DU</text></svg>`)}`,
+            role: 'manager',
+            skills: ['Gestion', 'Développement'],
+            phone: '+221 77 000 00 00'
+          }
+        ],
+        tasks: [],
+        risks: [],
+        createdAt: '2024-11-01T00:00:00.000Z',
+        updatedAt: '2024-11-01T00:00:00.000Z'
+      },
+      {
+        id: 'demo-project-3',
+        title: 'API Backend',
+        description: 'Développement de l\'API REST pour la plateforme avec Node.js et Express.',
+        status: 'Completed',
+        priority: 'High',
+        dueDate: '2024-10-31',
+        budget: 1200000,
+        client: 'Ecosystia',
+        tags: ['API', 'Node.js', 'Express', 'MongoDB'],
+        team: [
+          {
+            id: '1',
+            firstName: 'Demo',
+            lastName: 'Utilisateur',
+            email: 'demo@ecosystia.sn',
+            avatar: `data:image/svg+xml;base64,${btoa(`<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#4F46E5"/><text x="50" y="60" font-family="Arial" font-size="40" font-weight="bold" text-anchor="middle" fill="white">DU</text></svg>`)}`,
+            role: 'manager',
+            skills: ['Gestion', 'Développement'],
+            phone: '+221 77 000 00 00'
+          }
+        ],
+        tasks: [
+          {
+            id: 'task-3',
+            text: 'Créer les endpoints API',
+            status: 'Done',
+            priority: 'High',
+            assignee: {
+              id: '1',
+              firstName: 'Demo',
+              lastName: 'Utilisateur',
+              email: 'demo@ecosystia.sn',
+              avatar: `data:image/svg+xml;base64,${btoa(`<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#4F46E5"/><text x="50" y="60" font-family="Arial" font-size="40" font-weight="bold" text-anchor="middle" fill="white">DU</text></svg>`)}`,
+              role: 'manager',
+              skills: ['Gestion', 'Développement'],
+              phone: '+221 77 000 00 00'
+            },
+            dueDate: '2024-10-15',
+            estimatedTime: 12,
+            loggedTime: 12
+          }
+        ],
+        risks: [],
+        createdAt: '2024-09-01T00:00:00.000Z',
+        updatedAt: '2024-10-31T00:00:00.000Z'
+      }
+    ];
   }
 
   /**
@@ -136,6 +374,31 @@ class ProjectService {
    */
   async update(id: string, projectData: Partial<Project>): Promise<Project | null> {
     try {
+      // Mode démo : mise à jour avec persistance
+      if (this.isDemoMode()) {
+        const existingProjects = this.loadDemoProjects();
+        const projectIndex = existingProjects.findIndex(p => p.id === id);
+        
+        if (projectIndex === -1) {
+          throw new Error('Projet non trouvé');
+        }
+        
+        const updatedProject: Project = {
+          ...existingProjects[projectIndex],
+          ...projectData,
+          id: id, // Conserver l'ID original
+          updatedAt: new Date().toISOString()
+        };
+        
+        // Mettre à jour la liste et sauvegarder
+        existingProjects[projectIndex] = updatedProject;
+        this.saveDemoProjects(existingProjects);
+        
+        console.log('✅ Projet mis à jour en mode démo et sauvegardé:', id);
+        return updatedProject;
+      }
+
+      // Mode production : mise à jour dans Appwrite
       const appwriteData = this.mapToAppwrite(projectData);
       
       const response = await databases.updateDocument(
@@ -158,6 +421,21 @@ class ProjectService {
    */
   async delete(id: string): Promise<boolean> {
     try {
+      // Mode démo : suppression avec persistance
+      if (this.isDemoMode()) {
+        const existingProjects = this.loadDemoProjects();
+        const filteredProjects = existingProjects.filter(p => p.id !== id);
+        
+        if (filteredProjects.length === existingProjects.length) {
+          throw new Error('Projet non trouvé');
+        }
+        
+        this.saveDemoProjects(filteredProjects);
+        console.log('✅ Projet supprimé en mode démo et sauvegardé:', id);
+        return true;
+      }
+
+      // Mode production : suppression dans Appwrite
       await databases.deleteDocument(
         DATABASE_ID,
         this.collectionId,
@@ -169,6 +447,68 @@ class ProjectService {
     } catch (error) {
       console.error('❌ Erreur suppression projet:', error);
       return false;
+    }
+  }
+
+  /**
+   * Ajouter un membre à l'équipe du projet
+   */
+  async addTeamMember(projectId: string, member: User): Promise<Project | null> {
+    try {
+      const project = await this.getById(projectId);
+      if (!project) {
+        throw new Error('Projet non trouvé');
+      }
+
+      // Vérifier si le membre n'est pas déjà dans l'équipe
+      const isAlreadyMember = project.team.some(m => m.id === member.id);
+      if (isAlreadyMember) {
+        throw new Error('Ce membre fait déjà partie de l\'équipe');
+      }
+
+      const updatedTeam = [...project.team, member];
+      return await this.update(projectId, { team: updatedTeam });
+    } catch (error) {
+      console.error('❌ Erreur ajout membre équipe:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Supprimer un membre de l'équipe du projet
+   */
+  async removeTeamMember(projectId: string, memberId: string): Promise<Project | null> {
+    try {
+      const project = await this.getById(projectId);
+      if (!project) {
+        throw new Error('Projet non trouvé');
+      }
+
+      const updatedTeam = project.team.filter(member => member.id !== memberId);
+      return await this.update(projectId, { team: updatedTeam });
+    } catch (error) {
+      console.error('❌ Erreur suppression membre équipe:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Mettre à jour les informations d'un membre de l'équipe
+   */
+  async updateTeamMember(projectId: string, memberId: string, updatedMember: Partial<User>): Promise<Project | null> {
+    try {
+      const project = await this.getById(projectId);
+      if (!project) {
+        throw new Error('Projet non trouvé');
+      }
+
+      const updatedTeam = project.team.map(member => 
+        member.id === memberId ? { ...member, ...updatedMember } : member
+      );
+      return await this.update(projectId, { team: updatedTeam });
+    } catch (error) {
+      console.error('❌ Erreur mise à jour membre équipe:', error);
+      throw error;
     }
   }
 

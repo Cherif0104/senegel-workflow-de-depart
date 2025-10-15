@@ -102,6 +102,9 @@ export interface KeyResult {
   current: number;
   target: number;
   unit: string;
+  objectiveId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Objective {
@@ -109,6 +112,8 @@ export interface Objective {
   projectId: string;
   title: string;
   keyResults: KeyResult[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Contact {
@@ -148,10 +153,13 @@ export interface LeaveRequest {
   userId: string;
   userName: string;
   userAvatar: string;
+  type: 'Congé payé' | 'Congé maladie' | 'RTT' | 'Sans solde' | 'Formation';
   startDate: string;
   endDate: string;
   reason: string;
   status: 'Pending' | 'Approved' | 'Rejected';
+  reviewedBy?: string;  // ID de l'admin qui a validé/rejeté
+  reviewedAt?: string;  // Date de validation/rejet
 }
 
 export interface Invoice {
@@ -256,6 +264,17 @@ export interface AppNotification {
 export interface AgentMessage {
   role: 'user' | 'ai';
   content: string;
+}
+
+export interface CourseEnrollment {
+  id: string;
+  userId: string;
+  courseId: string;
+  enrolledDate: string;
+  progress: number;  // 0-100
+  completedLessons: string[];  // Array of lesson IDs
+  status: 'Active' | 'Completed' | 'Dropped';
+  completionDate?: string;
 }
 
 export interface Toast {
